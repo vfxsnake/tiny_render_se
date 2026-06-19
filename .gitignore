@@ -44,6 +44,11 @@ build/
 Build/
 build-*/
 
+# Visual Studio
+.vs/
+*.user
+*.suo
+
 # CMake generated files
 CMakeFiles/
 CMakeCache.txt
@@ -67,3 +72,7 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# specific files:
+CLAUDE.md
+docs/session_log.md
