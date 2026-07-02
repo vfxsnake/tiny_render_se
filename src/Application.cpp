@@ -2,12 +2,26 @@
 
 #include <stdexcept>
 
+#include <core/VulkanContext.h>
+#include <core/SwapChain.h>
+
+Application::Application()
+{
+    initWindow();
+    initVulkan();
+}
+
+
+Application::~Application()
+{
+    glfwDestroyWindow(window_);
+    glfwTerminate();
+}
+
 
 void Application::run()
 {
-    initWindow();
     mainLoop();
-    cleanup();
 }
 
 
@@ -28,17 +42,17 @@ void Application::initWindow()
 }
 
 
+void Application::initVulkan()
+{
+    context_ = std::make_unique<VulkanContext>(window_);
+    swapChain_ = std::make_unique<SwapChain>(*context_, window_);
+}
+
+
 void Application::mainLoop()
 {
     while (!glfwWindowShouldClose(window_))
     {
         glfwPollEvents();
     }
-}
-
-
-void Application::cleanup()
-{
-    glfwDestroyWindow(window_);
-    glfwTerminate();
 }

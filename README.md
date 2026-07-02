@@ -88,5 +88,13 @@ MIT
 
 ## Build Commands:
 
-- WSL: cmake -S . -B build_wsl -G Ninja then cmake --build build_wsl
-- Windows: cmake -S . -B build -G "Visual Studio 17 2022" -A x64 then cmake --build build --config Debug
+- WSL: 
+    cmake -S . -B build_wsl -G Ninja  
+    cmake --build build_wsl
+
+- Windows: 
+    cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+    cmake --build build --config Debug
+    cd build
+    Debug\TinyRendererSE.exe
+
