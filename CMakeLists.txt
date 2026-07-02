@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+enable_testing()
+
 # ── Vulkan SDK ─────────────────────────────────────────────────────────────────
 find_package(Vulkan REQUIRED)
 
@@ -35,6 +37,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(stb)
 
+FetchContent_Declare(
+    Catch2
+    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+    GIT_TAG        v3.7.1
+)
+FetchContent_MakeAvailable(Catch2)
+
 # ── Engine source reference ────────────────────────────────────────────────────
 set(ENGINE_SRC ${CMAKE_SOURCE_DIR}/engine/vk_tutorial_se/src)
 
@@ -42,6 +51,7 @@ set(ENGINE_SRC ${CMAKE_SOURCE_DIR}/engine/vk_tutorial_se/src)
 add_executable(TinyRendererSE
     src/main.cpp
     src/Application.cpp
+    src/rasterizer/Framebuffer.cpp
     ${ENGINE_SRC}/core/VulkanContext.cpp
     ${ENGINE_SRC}/core/SwapChain.cpp
 )
@@ -61,3 +71,6 @@ target_link_libraries(TinyRendererSE PRIVATE
 target_compile_definitions(TinyRendererSE PRIVATE
     VULKAN_HPP_NO_CONSTRUCTORS
 )
+
+# ── Tests ─────────────────────────────────────────────────────────────────────
+add_subdirectory(tests)

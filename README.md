@@ -84,3 +84,9 @@ The project follows the TinyRenderer lesson sequence. Each lesson adds one or mo
 ## License
 
 MIT
+
+
+## Build Commands:
+
+- WSL: cmake -S . -B build_wsl -G Ninja then cmake --build build_wsl
+- Windows: cmake -S . -B build -G "Visual Studio 17 2022" -A x64 then cmake --build build --config Debug
