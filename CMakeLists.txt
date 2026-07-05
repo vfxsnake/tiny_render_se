@@ -52,6 +52,7 @@ add_executable(TinyRendererSE
     src/main.cpp
     src/Application.cpp
     src/rasterizer/Framebuffer.cpp
+    src/display/DisplayPipeline.cpp
     ${ENGINE_SRC}/core/VulkanContext.cpp
     ${ENGINE_SRC}/core/SwapChain.cpp
 )

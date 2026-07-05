@@ -48,6 +48,8 @@ Fragment shader samples a combined image sampler at set 1, binding 0 (matches th
 | Descriptor binding | Combined image sampler, set 1 / binding 0 | Matches engine's texture binding convention. |
 | Shader toolchain | `slangc` custom command → `build/shaders/display.spv`, loaded via `readSpirv` | Mirrors engine; single `.slang` with both entry points. |
 | Verification | Visual only (no unit tests) | Display pipeline is verified by looking at the window (per CLAUDE.md testing rules). |
+| Pipeline class split (Slice 3) | `GraphicsPipeline` is its own class in `src/display/`, owned by `DisplayPipeline` | One-algorithm-per-file: `GraphicsPipeline` = build+own the pipeline object; `DisplayPipeline` = orchestrate the frame. Leaner than the engine's version (no descriptor params, depth, MSAA, `Mesh`, or `record()` yet). |
+| Draw-command recording (Slice 3) | Stays in `DisplayPipeline::drawFrame()`, between `beginRendering`/`endRendering`; `GraphicsPipeline` is a passive owner (no `record()`) | `DisplayPipeline` already owns the command buffer and render scope — one narrator of the frame. Promote to a `record()` only if a second pipeline ever appears. |
 
 ## Modules
 
@@ -75,6 +77,19 @@ Fragment shader samples a combined image sampler at set 1, binding 0 (matches th
 - `copyBufferToImage(cmd, buffer, image, width, height)`
 - `createShaderModule(spirv_path) -> shader_module`
 - `createGraphicsPipeline(color_format)` / `createDescriptors()`
+
+### `src/display/GraphicsPipeline.h/.cpp` (new, Slice 3)
+**Responsibility:** Build and own the fullscreen graphics pipeline. No per-frame work. Non-copyable (holds Vulkan RAII handles).
+
+**API:**
+- `GraphicsPipeline(const VulkanContext& context, vk::Format color_format)` — creates the pipeline layout and the graphics pipeline (loads the SPIR-V, dynamic rendering with `color_format`, dynamic viewport/scissor).
+- `auto getPipeline() const -> const vk::raii::Pipeline&`
+- (`getLayout()` added in Slice 4 when the texture descriptor arrives.)
+
+**Private helpers:**
+- `void createPipelineLayout()` — empty layout for now (no descriptors until Slice 4).
+- `void createPipeline(vk::Format color_format)` — the pipeline state (`PipelineRenderingCreateInfo` for dynamic rendering, shader stages, no vertex input, triangle list, dynamic viewport+scissor, no depth, single color-blend attachment).
+- `auto createShaderModule(const std::string& spirv_path) const -> vk::raii::ShaderModule`
 
 ### `src/Application.h/.cpp` (changes)
 **Responsibility:** Bring-up and lifecycle; drive the frame loop.

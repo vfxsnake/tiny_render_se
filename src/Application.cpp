@@ -5,6 +5,8 @@
 #include <core/VulkanContext.h>
 #include <core/SwapChain.h>
 
+#include "display/DisplayPipeline.h"
+
 Application::Application()
 {
     initWindow();
@@ -14,6 +16,7 @@ Application::Application()
 
 Application::~Application()
 {
+    context_->getLogicalDevice().waitIdle();
     glfwDestroyWindow(window_);
     glfwTerminate();
 }
@@ -46,6 +49,7 @@ void Application::initVulkan()
 {
     context_ = std::make_unique<VulkanContext>(window_);
     swapChain_ = std::make_unique<SwapChain>(*context_, window_);
+    displayPipeline_ = std::make_unique<DisplayPipeline>(*context_, *swapChain_);
 }
 
 
@@ -54,5 +58,6 @@ void Application::mainLoop()
     while (!glfwWindowShouldClose(window_))
     {
         glfwPollEvents();
+        displayPipeline_->drawFrame();
     }
 }
