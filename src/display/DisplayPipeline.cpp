@@ -5,16 +5,19 @@
 
 #include "core/VulkanContext.h"
 #include "core/SwapChain.h"
+#include "GraphicsPipeline.h"
 
 DisplayPipeline::DisplayPipeline(VulkanContext& context, SwapChain& swap_chain):
     context_(context),
     swapChain_(swap_chain)
 {
+    graphicsPipeline_ = std::make_unique<GraphicsPipeline>(context_, swapChain_.getFormat());
     createCommandPool();
     createCommandBuffer();
     createSyncObjects();
 }
 
+DisplayPipeline::~DisplayPipeline() = default;
 
 void DisplayPipeline::createCommandPool()
 {
@@ -136,6 +139,28 @@ void DisplayPipeline::drawFrame()
     };
 
     commandBuffer_.beginRendering(rendering_info);
+    vk::Extent2D extent = swapChain_.getExtent();
+    vk::Viewport view_port{
+        .width = static_cast<float>(extent.width),
+        .height = static_cast<float>(extent.height),
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f
+    };
+
+    vk::Rect2D scissors {
+        .offset = {0, 0},
+        .extent = extent
+    };
+    commandBuffer_.bindPipeline(
+        vk::PipelineBindPoint::eGraphics,
+        *(graphicsPipeline_->getPipeline())
+    );
+
+    commandBuffer_.setViewport(0, view_port);
+    commandBuffer_.setScissor(0, scissors);
+
+    commandBuffer_.draw(3, 1, 0, 0);
+
     commandBuffer_.endRendering();
 
     transitionImageLayout(

@@ -2,15 +2,19 @@
 
 #include <vulkan/vulkan_raii.hpp>
 #include <vector>
+#include <memory>
 
 // forward declaration
 class VulkanContext;
 class SwapChain;
+class GraphicsPipeline;
 
 class DisplayPipeline
 {
 public:
     DisplayPipeline(VulkanContext& context, SwapChain& swap_chain);
+    
+    ~DisplayPipeline();
 
     void drawFrame();
 
@@ -32,6 +36,8 @@ private:
 
     VulkanContext& context_;
     SwapChain& swapChain_;
+
+    std::unique_ptr<GraphicsPipeline> graphicsPipeline_;
 
     // Command pool and buffers most be created in this order
     vk::raii::CommandPool commandPool_ = nullptr;

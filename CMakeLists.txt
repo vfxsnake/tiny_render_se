@@ -53,6 +53,7 @@ add_executable(TinyRendererSE
     src/Application.cpp
     src/rasterizer/Framebuffer.cpp
     src/display/DisplayPipeline.cpp
+    src/display/GraphicsPipeline.cpp
     ${ENGINE_SRC}/core/VulkanContext.cpp
     ${ENGINE_SRC}/core/SwapChain.cpp
 )
@@ -72,6 +73,32 @@ target_link_libraries(TinyRendererSE PRIVATE
 target_compile_definitions(TinyRendererSE PRIVATE
     VULKAN_HPP_NO_CONSTRUCTORS
 )
+
+# Shaders block
+if(WIN32)
+    set(SLANG_C $ENV{VULKAN_SDK}/Bin/slangc.exe)
+else()
+    set(SLANG_C $ENV{VULKAN_SDK}/bin/slangc)
+endif()
+
+set(SHADERS_DIR ${CMAKE_SOURCE_DIR}/shaders)
+set(SHADER_SOURCES ${SHADERS_DIR}/display.slang)
+set(DISPLAY_ENTRY_POINTS -entry vertMain -entry fragMain)
+
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/shaders/display.spv 
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/shaders
+    COMMAND ${SLANG_C} ${SHADER_SOURCES} -target spirv -profile spirv_1_4 -emit-spirv-directly -fvk-use-entrypoint-name ${DISPLAY_ENTRY_POINTS} -o ${CMAKE_BINARY_DIR}/shaders/display.spv 
+    WORKING_DIRECTORY ${SHADERS_DIR}
+    DEPENDS ${SHADERS_DIR} ${SHADER_SOURCES}
+    COMMENT "compiling slang shaders"
+    VERBATIM
+)
+
+add_custom_target(Shaders DEPENDS 
+    ${CMAKE_BINARY_DIR}/shaders/display.spv
+)
+add_dependencies(TinyRendererSE Shaders)
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 add_subdirectory(tests)
