@@ -50,6 +50,14 @@ Fragment shader samples a combined image sampler at set 1, binding 0 (matches th
 | Verification | Visual only (no unit tests) | Display pipeline is verified by looking at the window (per CLAUDE.md testing rules). |
 | Pipeline class split (Slice 3) | `GraphicsPipeline` is its own class in `src/display/`, owned by `DisplayPipeline` | One-algorithm-per-file: `GraphicsPipeline` = build+own the pipeline object; `DisplayPipeline` = orchestrate the frame. Leaner than the engine's version (no descriptor params, depth, MSAA, `Mesh`, or `record()` yet). |
 | Draw-command recording (Slice 3) | Stays in `DisplayPipeline::drawFrame()`, between `beginRendering`/`endRendering`; `GraphicsPipeline` is a passive owner (no `record()`) | `DisplayPipeline` already owns the command buffer and render scope — one narrator of the frame. Promote to a `record()` only if a second pipeline ever appears. |
+| Upload location (Slice 4) | Copy is recorded in the **same** command buffer as the render, before `beginRendering` | One submit per frame; the transfer→fragment barrier lives inside one command buffer. No separate transfer submit. |
+| Texture `oldLayout` before copy (Slice 4) | Always `eUndefined` | Whole image is overwritten every frame — old contents are discardable. One value works for frame 0 and every later frame; no per-image layout tracking. |
+| Staging buffer memory (Slice 4) | `eHostVisible \| eHostCoherent`, allocated once, persistently mapped | `eHostVisible` makes it mappable; `eHostCoherent` skips manual flushes. Written once/frame — sample speed irrelevant, so no device-local. |
+| Texture memory (Slice 4) | Device-local (`eDeviceLocal`) | Sampled once per covered pixel per frame — must live in VRAM. Pay two cheap copies (CPU→staging→VRAM) to buy fast sampling. |
+| Descriptor set lifetime (Slice 4) | Set + layout + pool created once in ctor; set **re-bound** every frame | The set object never changes (same view+sampler); but `commandBuffer_.reset()` wipes recorded state, so `bindDescriptorSets` is re-recorded each frame alongside `bindPipeline`. |
+| Descriptor set index (Slice 4) | **Set 0**, binding 0 (deviates from earlier "set 1" note) | We have no UBO, so set 0 is free. Using set 1 (engine convention) would force a dummy empty set-0 layout in the pipeline layout. Simpler to occupy set 0. |
+| Descriptor set layout ownership (Slice 4) | `DisplayPipeline` creates + owns the layout; passes the `vk::DescriptorSetLayout` handle into the `GraphicsPipeline` ctor | Keeps all descriptor ownership in one place; `GraphicsPipeline` only references the handle to build its pipeline layout. |
+| Texture size (Slice 4) | Fixed at framebuffer size, passed to `DisplayPipeline` ctor | Texture never resizes with the window (fullscreen triangle stretches it). Decouples canvas resolution from window size — a rasterizer concern. |
 
 ## Modules
 
@@ -103,6 +111,47 @@ Fragment shader samples a combined image sampler at set 1, binding 0 (matches th
 **Responsibility:** Fullscreen-triangle passthrough that samples the uploaded texture.
 - `vertMain` [vertex] — builds clip position + UV from `SV_VertexID` (0,1,2).
 - `fragMain` [fragment] — `return texture_sampler.Sample(uv)` from set 1 / binding 0.
+
+## Slice 4 — concrete changes
+
+### `DisplayPipeline` (new members + helpers)
+Constructor gains framebuffer dimensions: `DisplayPipeline(VulkanContext& context, SwapChain& swap_chain, uint32_t fb_width, uint32_t fb_height)`.
+
+**New members (owned; declared in create-then-destroy-safe order):**
+- Texture: `vk::raii::Image textureImage_`, `vk::raii::DeviceMemory textureMemory_`, `vk::raii::ImageView textureView_`, `vk::raii::Sampler sampler_`.
+- Staging: `vk::raii::Buffer stagingBuffer_`, `vk::raii::DeviceMemory stagingMemory_`, `void* stagingMapped_` (persistent map).
+- Descriptors: `vk::raii::DescriptorSetLayout descriptorSetLayout_`, `vk::raii::DescriptorPool descriptorPool_`, `vk::raii::DescriptorSet descriptorSet_`.
+- Size: `uint32_t textureWidth_`, `uint32_t textureHeight_`.
+
+**New private helpers (mirror engine `Renderer`):**
+- `uint32_t findMemoryType(uint32_t type_filter, vk::MemoryPropertyFlags properties) const`
+- `createTexture()` — image (device-local, `R8G8B8A8Unorm`, `eSampled | eTransferDst`) + memory + view.
+- `createSampler()` — nearest filter, clamp-to-edge.
+- `createStagingBuffer()` — host-visible+coherent buffer sized `fb_width*fb_height*4`, mapped once into `stagingMapped_`.
+- `createDescriptors()` — layout (set 0, binding 0, combined image sampler, fragment stage) → pool → set → `updateDescriptorSets` pointing at `textureView_`+`sampler_`. The layout handle is passed to the `GraphicsPipeline` ctor.
+- `copyBufferToImage()` — records `copyBufferToImage` for the whole extent.
+
+**`drawFrame(const Framebuffer& fb)` new spine (before the existing swapchain barrier/render):**
+1. `memcpy(stagingMapped_, fb.getData(), fb size)`.
+2. barrier texture `eUndefined → eTransferDstOptimal` (src `eTopOfPipe`/`{}` → dst `eTransfer`/`eTransferWrite`).
+3. `copyBufferToImage`.
+4. barrier texture `eTransferDstOptimal → eShaderReadOnlyOptimal` (src `eTransfer`/`eTransferWrite` → dst `eFragmentShader`/`eShaderRead`).
+5. …existing swapchain barrier + `beginRendering` + `bindPipeline` + **`bindDescriptorSets`** + viewport/scissor + `draw(3)` + `endRendering` + present.
+
+### `GraphicsPipeline` (layout change)
+- Ctor gains a `vk::DescriptorSetLayout` parameter (the handle owned by `DisplayPipeline`): `GraphicsPipeline(const VulkanContext& context, vk::Format color_format, vk::DescriptorSetLayout descriptor_set_layout)`.
+- `createPipelineLayout()` stops being empty: it now lists that one descriptor set layout at index 0, so the pipeline knows about set 0 / binding 0.
+- Construction order note: in `DisplayPipeline`'s ctor, `createDescriptors()` must run **before** `GraphicsPipeline` is constructed, since the pipeline layout needs the descriptor set layout handle.
+
+### `shaders/display.slang` (`fragMain` rewrite)
+- Add a combined image sampler at set 0, binding 0 (Slang: `[[vk::binding(0, 0)]] Sampler2D texture;` or split `Texture2D` + `SamplerState`).
+- `VertexOutput` gains a `float2 uv : TEXCOORD0`; `vertMain` writes the `uv` it already computes.
+- `fragMain` returns `texture.Sample(inVert.uv)` instead of hardcoded green.
+
+### `Application` (changes)
+- New member `std::unique_ptr<Framebuffer> framebuffer_` (or by-value) sized to window.
+- `initVulkan()`: construct framebuffer; pass its dimensions to the `DisplayPipeline` ctor.
+- `mainLoop()`: fill `framebuffer_` with a test pattern (gradient / clear color) → `displayPipeline_->drawFrame(*framebuffer_)`.
 
 ### CMake changes
 - Add `src/display/DisplayPipeline.cpp` to the `TinyRendererSE` target; add `src/display` to include dirs.

@@ -3,20 +3,27 @@
 #include <vulkan/vulkan_raii.hpp>
 #include <vector>
 #include <memory>
+#include <cstdint>
 
 // forward declaration
 class VulkanContext;
 class SwapChain;
 class GraphicsPipeline;
+class Framebuffer;
 
 class DisplayPipeline
 {
 public:
-    DisplayPipeline(VulkanContext& context, SwapChain& swap_chain);
+    DisplayPipeline(
+        VulkanContext& context, 
+        SwapChain& swap_chain,
+        uint32_t frame_buffer_width,
+        uint32_t frame_buffer_height
+    );
     
     ~DisplayPipeline();
 
-    void drawFrame();
+    void drawFrame(const Framebuffer&);
 
 private:
 
@@ -34,8 +41,32 @@ private:
         vk::AccessFlags2 destination_access_mask
     );
 
+    uint32_t findMemoryType(uint32_t type_filter, vk::MemoryPropertyFlags properties) const;
+    void createTexture();
+
+    void createSampler();
+    void createStagingBuffer();
+    void createDescriptors();
+
+
     VulkanContext& context_;
     SwapChain& swapChain_;
+
+    uint32_t textureWidth_ = 0;
+    uint32_t textureHeight_ = 0;
+
+    vk::raii::DeviceMemory textureMemory_ = nullptr;
+    vk::raii::Image textureImage_ = nullptr;
+    vk::raii::ImageView textureImageView_ = nullptr;
+    vk::raii::Sampler sampler_ = nullptr;
+
+    vk::raii::DeviceMemory stagingMemory_ = nullptr;
+    vk::raii::Buffer stagingBuffer_ = nullptr;
+    void* stagingBufferMemoryMapped_ = nullptr;
+
+    vk::raii::DescriptorSetLayout descriptorSetLayout_ = nullptr;
+    vk::raii::DescriptorPool descriptorPool_ = nullptr;
+    vk::raii::DescriptorSet descriptorSet_ = nullptr;
 
     std::unique_ptr<GraphicsPipeline> graphicsPipeline_;
 

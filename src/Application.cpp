@@ -7,7 +7,8 @@
 
 #include "display/DisplayPipeline.h"
 
-Application::Application()
+Application::Application() :
+    framebuffer_(WIDTH, HEIGHT)
 {
     initWindow();
     initVulkan();
@@ -49,7 +50,12 @@ void Application::initVulkan()
 {
     context_ = std::make_unique<VulkanContext>(window_);
     swapChain_ = std::make_unique<SwapChain>(*context_, window_);
-    displayPipeline_ = std::make_unique<DisplayPipeline>(*context_, *swapChain_);
+    displayPipeline_ = std::make_unique<DisplayPipeline>(
+        *context_, 
+        *swapChain_,
+        WIDTH,
+        HEIGHT
+    );
 }
 
 
@@ -58,6 +64,6 @@ void Application::mainLoop()
     while (!glfwWindowShouldClose(window_))
     {
         glfwPollEvents();
-        displayPipeline_->drawFrame();
+        displayPipeline_->drawFrame(framebuffer_);
     }
 }

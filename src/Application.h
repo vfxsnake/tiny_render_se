@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <memory>
 
+#include "rasterizer/Framebuffer.h"
+
 // forward declarations
 class VulkanContext;
 class SwapChain;
@@ -28,6 +30,8 @@ private:
     static constexpr uint32_t WIDTH = 800;
     static constexpr uint32_t HEIGHT = 600;
     GLFWwindow* window_ = nullptr;
+
+    Framebuffer framebuffer_;
 
     // vulkan unique pointer objects
     std::unique_ptr<VulkanContext> context_;

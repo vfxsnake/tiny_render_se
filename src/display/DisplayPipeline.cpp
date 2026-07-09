@@ -6,15 +6,27 @@
 #include "core/VulkanContext.h"
 #include "core/SwapChain.h"
 #include "GraphicsPipeline.h"
+#include "rasterizer/Framebuffer.h"
 
-DisplayPipeline::DisplayPipeline(VulkanContext& context, SwapChain& swap_chain):
+DisplayPipeline::DisplayPipeline(
+    VulkanContext& context, 
+    SwapChain& swap_chain,
+    uint32_t frame_buffer_width,
+    uint32_t frame_buffer_height
+):
     context_(context),
-    swapChain_(swap_chain)
+    swapChain_(swap_chain),
+    textureWidth_(frame_buffer_width),
+    textureHeight_(frame_buffer_height)
 {
     graphicsPipeline_ = std::make_unique<GraphicsPipeline>(context_, swapChain_.getFormat());
     createCommandPool();
     createCommandBuffer();
     createSyncObjects();
+    createTexture();
+    createSampler();
+    createStagingBuffer();
+    createDescriptors();
 }
 
 DisplayPipeline::~DisplayPipeline() = default;
@@ -74,7 +86,7 @@ void DisplayPipeline::createSyncObjects()
 }
 
 
-void DisplayPipeline::drawFrame()
+void DisplayPipeline::drawFrame(const Framebuffer&)
 {
     vk::Result fence_result = context_.getLogicalDevice().waitForFences(
         *inFlightFence_,
@@ -238,4 +250,193 @@ void DisplayPipeline::transitionImageLayout(
     };
 
     commandBuffer_.pipelineBarrier2(dependency_info);
+}
+
+
+uint32_t DisplayPipeline::findMemoryType(
+    uint32_t type_filter, 
+    vk::MemoryPropertyFlags properties
+) const
+{
+    vk::PhysicalDeviceMemoryProperties memory_properties = context_.getPhysicalDevice().getMemoryProperties();
+    for (uint32_t i = 0; i < memory_properties.memoryTypeCount; i++)
+    {
+        if (
+            (type_filter & (1 << i)) && 
+            (memory_properties.memoryTypes[i].propertyFlags & properties) == properties
+        )
+        {
+            return i;
+        }
+    }
+
+    throw std::runtime_error("faliled to find suitable memory type!");
+}
+
+
+void DisplayPipeline::createTexture()
+{
+    vk::ImageCreateInfo image_create_info{
+        .imageType = vk::ImageType::e2D,
+        .format = vk::Format::eR8G8B8A8Unorm,
+        .extent = {.width = textureWidth_, .height = textureHeight_, .depth = 1}, // vk:Extent
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst,
+        .sharingMode = vk::SharingMode::eExclusive
+    };
+
+    textureImage_ = vk::raii::Image(context_.getLogicalDevice(), image_create_info);
+    
+    vk::MemoryRequirements memory_requirements = textureImage_.getMemoryRequirements();
+    
+    uint32_t memory_type = findMemoryType(
+        memory_requirements.memoryTypeBits, 
+        vk::MemoryPropertyFlagBits::eDeviceLocal
+    );
+    
+    vk::MemoryAllocateInfo memory_allocate_info{
+        .allocationSize = memory_requirements.size,
+        .memoryTypeIndex = memory_type
+    };
+
+    textureMemory_ = vk::raii::DeviceMemory(
+        context_.getLogicalDevice(),
+        memory_allocate_info
+    );
+
+    textureImage_.bindMemory(*textureMemory_, 0);
+
+    vk::ImageViewCreateInfo image_view_create_info{
+        .image = *textureImage_,
+        .viewType = vk::ImageViewType::e2D,
+        .format = vk::Format::eR8G8B8A8Unorm,
+        .subresourceRange = {
+            .aspectMask = vk::ImageAspectFlagBits::eColor,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1
+        }
+    };
+
+    textureImageView_ = vk::raii::ImageView(context_.getLogicalDevice(), image_view_create_info);
+}
+
+
+void DisplayPipeline::createSampler()
+{
+    vk::SamplerCreateInfo sampler_create_info{
+        .magFilter = vk::Filter::eNearest,
+        .minFilter = vk::Filter::eNearest,
+        .addressModeU = vk::SamplerAddressMode::eClampToEdge,
+        .addressModeV = vk::SamplerAddressMode::eClampToEdge,
+        .addressModeW = vk::SamplerAddressMode::eClampToEdge,
+        .maxLod = 0.0f
+    };
+
+    sampler_ = vk::raii::Sampler(context_.getLogicalDevice(), sampler_create_info);
+}
+
+
+void DisplayPipeline::createStagingBuffer()
+{
+    // vk::DeviceSize(textureWidth_) build up the arithmetic to 64bits; 4 is for RGBA values
+    vk::DeviceSize buffer_size = vk::DeviceSize(textureWidth_) * textureHeight_ * 4;
+    
+    vk::BufferCreateInfo buffer_create_info{
+        .size = buffer_size,
+        .usage = vk::BufferUsageFlagBits::eTransferSrc,
+        .sharingMode = vk::SharingMode::eExclusive
+    };
+
+    stagingBuffer_ = vk::raii::Buffer(context_.getLogicalDevice(), buffer_create_info);
+
+    vk::MemoryRequirements memory_requirements = stagingBuffer_.getMemoryRequirements();
+
+    uint32_t memory_type =  findMemoryType(
+        memory_requirements.memoryTypeBits,
+        vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent 
+    );
+
+    vk::MemoryAllocateInfo stagin_memory_allocate_info{
+        .allocationSize = memory_requirements.size,
+        .memoryTypeIndex = memory_type
+    };
+
+    stagingMemory_ = vk::raii::DeviceMemory(
+        context_.getLogicalDevice(),
+        stagin_memory_allocate_info
+    );
+
+    stagingBuffer_.bindMemory(*stagingMemory_, 0);
+    stagingBufferMemoryMapped_ = stagingMemory_.mapMemory(0, buffer_size);
+}
+
+
+void DisplayPipeline::createDescriptors()
+{
+    // creating DescriptorSetLayout
+    vk::DescriptorSetLayoutBinding descriptor_set_layout_binding{
+        .binding = 0,
+        .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+        .descriptorCount = 1,
+        .stageFlags = vk::ShaderStageFlagBits::eFragment,
+        .pImmutableSamplers = nullptr
+    };
+
+    vk::DescriptorSetLayoutCreateInfo descriptor_set_layout_create_info{
+        .bindingCount = 1,
+        .pBindings = &descriptor_set_layout_binding
+    };
+
+    descriptorSetLayout_ = vk::raii::DescriptorSetLayout(
+        context_.getLogicalDevice(),
+        descriptor_set_layout_create_info
+    );
+
+    // creating DescriptorSetPool
+    vk::DescriptorPoolSize descriptor_pool_size{
+        .type = vk::DescriptorType::eCombinedImageSampler,
+        .descriptorCount = 1
+    };
+    vk::DescriptorPoolCreateInfo descriptor_pool_create_info{
+        .flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
+        .maxSets = 1,
+        .poolSizeCount = 1,
+        .pPoolSizes = &descriptor_pool_size,
+    };
+
+    descriptorPool_ = vk::raii::DescriptorPool(
+        context_.getLogicalDevice(),
+        descriptor_pool_create_info
+    );
+
+    // allocate set
+    vk::DescriptorSetAllocateInfo descriptor_set_allocate_info{
+        .descriptorPool = *descriptorPool_,
+        .descriptorSetCount = 1,
+        .pSetLayouts = &*descriptorSetLayout_
+    };
+
+    std::vector<vk::raii::DescriptorSet> descriptor_sets = context_.getLogicalDevice().allocateDescriptorSets(descriptor_set_allocate_info);
+    descriptorSet_ = std::move(descriptor_sets.front());
+
+    // writing the descriptor
+    vk::DescriptorImageInfo descriptor_image_info{
+        .sampler = *sampler_,
+        .imageView = *textureImageView_,
+        .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal
+    };
+
+    vk::WriteDescriptorSet write_descriptor_set{
+        .dstSet = *descriptorSet_,
+        .dstBinding = 0,
+        .dstArrayElement = 0,
+        .descriptorCount = 1,
+        .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+        .pImageInfo = &descriptor_image_info
+    };
+
+    context_.getLogicalDevice().updateDescriptorSets({write_descriptor_set}, {});
 }
