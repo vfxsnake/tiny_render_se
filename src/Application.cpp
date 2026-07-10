@@ -6,6 +6,7 @@
 #include <core/SwapChain.h>
 
 #include "display/DisplayPipeline.h"
+#include "rasterizer/Color.h"
 
 Application::Application() :
     framebuffer_(WIDTH, HEIGHT)
@@ -25,6 +26,7 @@ Application::~Application()
 
 void Application::run()
 {
+    drawTextPattern();
     mainLoop();
 }
 
@@ -65,5 +67,23 @@ void Application::mainLoop()
     {
         glfwPollEvents();
         displayPipeline_->drawFrame(framebuffer_);
+    }
+}
+
+
+void Application::drawTextPattern()
+{
+    for (int y = 0; y < framebuffer_.getHeight(); y++)
+    {
+        for (int x = 0; x < framebuffer_.getWidth(); x++)
+        {
+            Color color{
+                .r = static_cast<uint8_t>(255* x/ (framebuffer_.getWidth() -1)),
+                .g = static_cast<uint8_t>(255* x/ (framebuffer_.getWidth() -1)),
+                .b = 0,
+                .a = 255
+            };
+            framebuffer_.setPixel(x, y, color);
+        }
     }
 }

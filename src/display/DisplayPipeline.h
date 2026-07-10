@@ -23,7 +23,7 @@ public:
     
     ~DisplayPipeline();
 
-    void drawFrame(const Framebuffer&);
+    void drawFrame(const Framebuffer& framebuffer);
 
 private:
 

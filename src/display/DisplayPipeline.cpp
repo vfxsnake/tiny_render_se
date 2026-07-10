@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <array>
+#include <cstring>
 
 #include "core/VulkanContext.h"
 #include "core/SwapChain.h"
@@ -19,7 +20,6 @@ DisplayPipeline::DisplayPipeline(
     textureWidth_(frame_buffer_width),
     textureHeight_(frame_buffer_height)
 {
-    graphicsPipeline_ = std::make_unique<GraphicsPipeline>(context_, swapChain_.getFormat());
     createCommandPool();
     createCommandBuffer();
     createSyncObjects();
@@ -27,6 +27,11 @@ DisplayPipeline::DisplayPipeline(
     createSampler();
     createStagingBuffer();
     createDescriptors();
+    graphicsPipeline_ = std::make_unique<GraphicsPipeline>(
+        context_, 
+        swapChain_.getFormat(),
+        *descriptorSetLayout_
+    );
 }
 
 DisplayPipeline::~DisplayPipeline() = default;
@@ -86,7 +91,7 @@ void DisplayPipeline::createSyncObjects()
 }
 
 
-void DisplayPipeline::drawFrame(const Framebuffer&)
+void DisplayPipeline::drawFrame(const Framebuffer& framebuffer)
 {
     vk::Result fence_result = context_.getLogicalDevice().waitForFences(
         *inFlightFence_,
@@ -101,6 +106,12 @@ void DisplayPipeline::drawFrame(const Framebuffer&)
 
     // reseting cpu fence to wait for the gpu.
     context_.getLogicalDevice().resetFences(*inFlightFence_);
+
+    std::memcpy(
+        stagingBufferMemoryMapped_,
+        framebuffer.getData(),
+        static_cast<size_t>(textureWidth_) * textureHeight_ * 4
+    );
 
     [[maybe_unused]] auto [available_image_result, image_index] = swapChain_.get().acquireNextImage(
         UINT64_MAX,
@@ -123,6 +134,48 @@ void DisplayPipeline::drawFrame(const Framebuffer&)
         {},
         vk::PipelineStageFlagBits2::eColorAttachmentOutput,
         vk::AccessFlagBits2::eColorAttachmentWrite
+    );
+
+    // texture barrier
+    transitionImageLayout(
+        *textureImage_,
+        vk::ImageLayout::eUndefined,
+        vk::ImageLayout::eTransferDstOptimal,
+        vk::PipelineStageFlagBits2::eTopOfPipe,
+        {},
+        vk::PipelineStageFlagBits2::eTransfer,
+        vk::AccessFlagBits2::eTransferWrite
+    );
+
+    vk::BufferImageCopy copy_region{
+        .bufferOffset = 0,
+        .bufferRowLength = 0,
+        .bufferImageHeight = 0,
+        .imageSubresource = {
+            .aspectMask = vk::ImageAspectFlagBits::eColor,
+            .mipLevel = 0,
+            .baseArrayLayer = 0,
+            .layerCount = 1
+        },
+        .imageOffset = {0,0,0},
+        .imageExtent = {textureWidth_, textureHeight_, 1}
+    };
+
+    commandBuffer_.copyBufferToImage(
+        *stagingBuffer_,
+        *textureImage_,
+        vk::ImageLayout::eTransferDstOptimal,
+        copy_region
+    );
+
+    transitionImageLayout(
+        *textureImage_,
+        vk::ImageLayout::eTransferDstOptimal,
+        vk::ImageLayout::eShaderReadOnlyOptimal,
+        vk::PipelineStageFlagBits2::eTransfer,
+        vk::AccessFlagBits2::eTransferWrite,
+        vk::PipelineStageFlagBits2::eFragmentShader,
+        vk::AccessFlagBits2::eShaderRead
     );
 
     // preparing rendering attachment info
@@ -166,6 +219,14 @@ void DisplayPipeline::drawFrame(const Framebuffer&)
     commandBuffer_.bindPipeline(
         vk::PipelineBindPoint::eGraphics,
         *(graphicsPipeline_->getPipeline())
+    );
+
+    commandBuffer_.bindDescriptorSets(
+        vk::PipelineBindPoint::eGraphics,
+        *graphicsPipeline_->getPipelineLayout(),
+        0,
+        *descriptorSet_,
+        nullptr
     );
 
     commandBuffer_.setViewport(0, view_port);

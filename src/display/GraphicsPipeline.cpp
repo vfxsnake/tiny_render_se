@@ -6,17 +6,24 @@
 #include "utils/FileUtils.h"
 
 
-GraphicsPipeline::GraphicsPipeline(const VulkanContext& context, vk::Format color_format):
+GraphicsPipeline::GraphicsPipeline(
+    const VulkanContext& context, 
+    vk::Format color_format,
+    vk::DescriptorSetLayout descriptor_set_layout
+):
     context_(context)
 {
-    createPipelineLayout();
+    createPipelineLayout(descriptor_set_layout);
     createPipeline(color_format);
 }
 
 
-void GraphicsPipeline::createPipelineLayout()
+void GraphicsPipeline::createPipelineLayout(vk::DescriptorSetLayout descriptor_set_layout)
 {
-    vk::PipelineLayoutCreateInfo pipeline_layout_create_info{};
+    vk::PipelineLayoutCreateInfo pipeline_layout_create_info{
+        .setLayoutCount = 1,
+        .pSetLayouts = &descriptor_set_layout
+    };
 
     pipelineLayout_ = context_.getLogicalDevice().createPipelineLayout(pipeline_layout_create_info);
 }
@@ -127,4 +134,10 @@ void GraphicsPipeline::createPipeline(vk::Format color_format)
 vk::raii::Pipeline const& GraphicsPipeline::getPipeline() const
 {
     return pipeline_;
+}
+
+
+vk::raii::PipelineLayout const& GraphicsPipeline::getPipelineLayout() const
+{
+    return pipelineLayout_;
 }
