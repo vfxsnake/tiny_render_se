@@ -7,6 +7,8 @@
 #include <memory>
 
 #include "rasterizer/Framebuffer.h"
+#include "math/Vec2.h"
+#include "rasterizer/Color.h"
 
 // forward declarations
 class VulkanContext;
@@ -28,6 +30,23 @@ private:
     void initVulkan();
 
     void drawTextPattern();
+
+    void drawPoint()
+    {
+        Color black{0,0,0,0};
+        Color white{255, 255, 255, 255};
+        
+        framebuffer_.clear(black);
+
+        Vec2i point_1{100, 100};
+        Vec2i point_2{700, 100};
+        Vec2i point_3{100, 500};
+
+        framebuffer_.setPixel(point_1.x, point_1.y, white);
+        framebuffer_.setPixel(point_2.x, point_2.y, white);
+        framebuffer_.setPixel(point_3.x, point_3.y, white);
+
+    }
 
     static constexpr uint32_t WIDTH = 800;
     static constexpr uint32_t HEIGHT = 600;

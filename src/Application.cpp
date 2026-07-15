@@ -7,6 +7,7 @@
 
 #include "display/DisplayPipeline.h"
 #include "rasterizer/Color.h"
+#include "rasterizer/LineDrawer.h"
 
 Application::Application() :
     framebuffer_(WIDTH, HEIGHT)
@@ -26,7 +27,19 @@ Application::~Application()
 
 void Application::run()
 {
-    drawTextPattern();
+
+    Color black{0,0,0,0};
+    Color white{255, 255, 255, 255};
+        
+    framebuffer_.clear(black);
+    
+    Vec2i point_1{100, 100};
+    Vec2i point_2{500, 200};
+    Vec2i point_3{300, 500};
+    LineDrawer::drawLine(point_2, point_1, white, framebuffer_);
+    LineDrawer::drawLine(point_3, point_2, white, framebuffer_);
+    LineDrawer::drawLine(point_1, point_3, white, framebuffer_);
+
     mainLoop();
 }
 
