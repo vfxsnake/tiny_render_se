@@ -10,5 +10,5 @@ class Framebuffer;
 namespace LineDrawer
 {
     void drawLine(Vec2i a, Vec2i b, Color color, Framebuffer& frame_buffer);
-
-} // end of LinearDrawer namespace
+    
+} // end of LineDrawer namespace
