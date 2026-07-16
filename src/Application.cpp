@@ -30,15 +30,18 @@ void Application::run()
 
     Color black{0,0,0,0};
     Color white{255, 255, 255, 255};
+    Color red{255, 0, 0, 1};
+    Color green{0, 255, 0, 1};
+    Color blue{0, 0, 255, 1};
         
     framebuffer_.clear(black);
     
     Vec2i point_1{100, 100};
     Vec2i point_2{500, 200};
     Vec2i point_3{300, 500};
-    LineDrawer::drawLine(point_2, point_1, white, framebuffer_);
-    LineDrawer::drawLine(point_3, point_2, white, framebuffer_);
-    LineDrawer::drawLine(point_1, point_3, white, framebuffer_);
+    LineDrawer::drawLine(point_2, point_1, red, framebuffer_);
+    LineDrawer::drawLine(point_3, point_2, green, framebuffer_);
+    LineDrawer::drawLine(point_1, point_3, blue, framebuffer_);
 
     mainLoop();
 }
