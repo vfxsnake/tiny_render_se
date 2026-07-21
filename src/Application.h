@@ -48,6 +48,9 @@ private:
 
     }
 
+    // testing helpers
+    void testDrawLineAlgorithms();
+
     static constexpr uint32_t WIDTH = 800;
     static constexpr uint32_t HEIGHT = 600;
     GLFWwindow* window_ = nullptr;

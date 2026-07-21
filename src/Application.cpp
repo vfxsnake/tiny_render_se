@@ -4,10 +4,17 @@
 
 #include <core/VulkanContext.h>
 #include <core/SwapChain.h>
+#include <random>
+#include <vector>
+#include <array>
+#include <iostream>
 
 #include "display/DisplayPipeline.h"
 #include "rasterizer/Color.h"
 #include "rasterizer/LineDrawer.h"
+#include "utils/Timer.h"
+
+
 
 Application::Application() :
     framebuffer_(WIDTH, HEIGHT)
@@ -30,19 +37,22 @@ void Application::run()
 
     Color black{0,0,0,0};
     Color white{255, 255, 255, 255};
-    Color red{255, 0, 0, 1};
-    Color green{0, 255, 0, 1};
-    Color blue{0, 0, 255, 1};
+    Color red{255, 0, 0, 255};
+    Color green{0, 255, 0, 255};
+    Color blue{0, 0, 255, 255};
         
     framebuffer_.clear(black);
     
-    Vec2i point_1{100, 100};
-    Vec2i point_2{500, 200};
-    Vec2i point_3{300, 500};
-    LineDrawer::drawLine(point_2, point_1, red, framebuffer_);
-    LineDrawer::drawLine(point_3, point_2, green, framebuffer_);
-    LineDrawer::drawLine(point_1, point_3, blue, framebuffer_);
+    // Vec2i point_1{100, 100};
+    // Vec2i point_2{500, 200};
+    // Vec2i point_3{300, 500};
+    // LineDrawer::drawLineNaive(point_2, point_1, red, framebuffer_);
+    // LineDrawer::drawLineNaive(point_3, point_2, green, framebuffer_);
+    // LineDrawer::drawLineNaive(point_1, point_3, blue, framebuffer_);
 
+    // Vec2i point_4{150, 150};
+    // LineDrawer::drawLineNaive(point_4, point_4, white, framebuffer_);
+    testDrawLineAlgorithms();
     mainLoop();
 }
 
@@ -102,4 +112,63 @@ void Application::drawTextPattern()
             framebuffer_.setPixel(x, y, color);
         }
     }
+}
+
+void Application::testDrawLineAlgorithms()
+{    
+    // initializing Mersenne twister engine with the static seed
+    std::mt19937 gen(147);
+
+    // defining the range
+    std::uniform_int_distribution<int> dist_x{0, WIDTH - 1};
+    std::uniform_int_distribution<int> dist_y{0, HEIGHT - 1};
+
+    // constructing a list of valid lines
+    std::vector<std::array<Vec2i, 2>> line_list;
+    int line_count = 0;
+    while (line_count < 100000)
+    {
+        Vec2i a = {dist_x(gen), dist_y(gen)};
+        Vec2i b = {dist_x(gen), dist_y(gen)};
+
+        if (std::abs(b.x - a.x) >= 200 || std::abs(b.y - a.y) >= 200)
+        {
+            line_list.push_back({a, b});
+            line_count ++;
+        }
+    }
+
+    Color black{0, 0, 0, 0};
+    Color red{255, 0, 0, 255};
+    Color green{0, 255, 0,  255};
+    Color blue{0, 0, 255, 255};
+    
+    framebuffer_.clear(black);
+    // draw line Naive draw
+    Timer timer;
+    timer.start();
+    for (auto& start_end_points : line_list)
+    {
+        LineDrawer::drawLineNaive(start_end_points[0], start_end_points[1], red, framebuffer_);
+    }
+    timer.stop();
+    std::cout << "drawLineNaive processing time: " << timer.elapsedMs() << "ms.\n";
+
+
+    timer.start();
+    for (auto& start_end_points : line_list)
+    {
+        LineDrawer::drawLineAccum(start_end_points[0], start_end_points[1], green, framebuffer_);
+    }
+    timer.stop();
+    std::cout << "drawLineAccum processing time: " << timer.elapsedMs() << "ms.\n";
+
+    timer.start();
+    for (auto& start_end_points : line_list)
+    {
+
+        LineDrawer::drawLine(start_end_points[0], start_end_points[1], blue, framebuffer_);
+    }
+    timer.stop();
+    std::cout << "drawLine Bresenham processing time: " << timer.elapsedMs() << "ms.\n";
 }

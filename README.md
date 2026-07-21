@@ -94,7 +94,11 @@ MIT
 
 - Windows: 
     cmake -S . -B build -G "Visual Studio 17 2022" -A x64
-    cmake --build build --config Debug
+    
+    cmake --build build --config Debug 
+    or
+    cmake --build build --config Release
+    
     cd build
     Debug\TinyRendererSE.exe
 

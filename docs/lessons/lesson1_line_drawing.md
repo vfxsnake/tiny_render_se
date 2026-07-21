@@ -74,6 +74,51 @@ So the real case for the integer rung is:
 Note the tension worth remembering: the speed fix (multiply → accumulate) is what *creates* the
 drift problem. Rung 2 is faster and less exact than rung 1. Bresenham is the rung that is both.
 
+### The measured result (Sessions 18–20) — the ladder is inverted on this hardware
+
+Host: RTX 2070 Max-Q laptop, MSVC `/O2` (Release), 100k random lines (major-axis extent ≥ 200),
+timed via `Application::testDrawLineAlgorithms()` before `mainLoop()`. All three rungs verified
+**bit-identical** (differential on-screen test: naive→red, accum→green, bresenham→blue over each
+other; a clean all-blue screen proves identical pixel sets).
+
+Two representative runs (raw ms vary run-to-run with thermals/background load, so read the
+**ratio to naive within a run**, not the absolute numbers):
+
+| rung | run A (bresenham float) | run B (bresenham int) |
+|------|-------------------------|-----------------------|
+| naive | 190.6 ms | 152.8 ms |
+| accum | 186.3 ms (0.98×) | 161.8 ms (**1.06× — slower**) |
+| bresenham | 123.3 ms (**0.647×**) | 99.4 ms (**0.650×**) |
+
+Three findings, none of which the textbook ladder predicts:
+
+1. **Integer scaling bought nothing.** Bresenham sits at 0.647× naive as a *float* and 0.650× as
+   pure *integer* — identical within noise. Killing the last float add did not move the needle.
+   The entire ~35% Bresenham win came one rung earlier, from **dropping `std::round`**. So the
+   dominant per-pixel cost was the float→int **rounding/conversion**, not the arithmetic.
+
+2. **accum is *slower* than naive** (repeatable across runs; Session 19's one-off "12% faster"
+   was noise). Likely cause: naive's `minor_axis_step * i` is an **independent** function of `i`
+   (no loop-carried state) → the compiler can unroll/vectorize it; accum's `acc += step` is a
+   **serial float dependency chain** that blocks vectorization. The multiply was free; the
+   accumulator we introduced to "save" it is a *pessimization*. (Strong hypothesis from timings;
+   confirm in disassembly with MSVC `/FAs` or godbolt `/O2` if ever needed — not pursued, since it
+   doesn't change what we build.)
+
+3. **Partly memory-bound.** A shallow line streams (adjacent x = adjacent bytes); a steep line,
+   post-transpose, strides ~3200 bytes/pixel through a ~1.9 MB buffer that overflows L2. A DRAM
+   stall costs the same regardless of int-vs-float in the inner loop — which is *why* removing
+   float ops (finding 1) doesn't help and why the Debug/Release ratio was only 4.35×, not ~10×.
+
+**Why Bresenham still wins:** it drops `std::round` entirely. It *also* carries a serial
+dependency (like accum), but losing the per-pixel conversion outweighs that. So the honest ranking
+of causes on this hardware: **`round` cost ≫ vectorizability ≫ int-vs-float (≈ 0).**
+
+**Carry into Phase 2 (GPU port):** the classic "use integers, they're faster" motivation for
+Bresenham is inverted here. The real levers are **avoiding per-pixel conversions**, **memory
+access patterns**, and **keeping iterations independent** — not integer arithmetic. That is what
+the compute-shader version will actually be competing on.
+
 ### Delta-time reveal (proper game-loop pattern)
 `mainLoop` becomes update-with-dt then render: `Timer` gives `dt`, `elapsed += dt`, reveal =
 `rate * elapsed`. Reveal speed is resolution-independent by construction — **no sleep** needed
@@ -95,9 +140,9 @@ the display only samples the framebuffer once per `drawFrame`.
 | Endpoint contract | **Inclusive of both endpoints** (`i <= delta_x`) | Matches TinyRenderer; closed shapes need it — an exclusive end leaves a 1-px hole at every corner of a triangle |
 | Rung coexistence | Three named functions side by side: `drawLineNaive` / `drawLineAccum` / `drawLineBresenham` | All three must exist at once to be benchmarked against each other; the losers are deleted after the numbers are recorded |
 | Shared code across rungs | Normalization only (file-local helper, anonymous namespace) — **never the inner loop** | Normalization runs once per line (free). A function pointer in the *per-pixel* loop blocks inlining and its overhead would swamp the float-vs-int difference under measurement |
-| Benchmark location | `bench/bench_linedrawer.cpp`, standalone `main()` — not in `LineDrawer`, not a Catch2 test | The thing measured must not contain the measuring: keeps `<random>`/`<iostream>`/`Timer` out of the rasterizer and out of the app binary. No pass/fail, so not CTest |
-| Rung selection at bench time | Function pointer (`using LineFn = void(*)(Vec2i, Vec2i, Color, Framebuffer&)`) | Identical signatures; harness constant, algorithm variable. One indirect call *per line* is amortized over hundreds of `setPixel`s |
-| Zero-length line (`a == b`) | **Open** — precondition or guard, undecided | `delta_x == 0` → `0.0f/0.0f` = NaN → `int` conversion is UB. Needs a contract decision, not a patch |
+| Benchmark location | **`Application::testDrawLineAlgorithms()`**, run before `mainLoop()` (supersedes the earlier standalone `bench/` plan) | The `bench/` + `LineFn`-function-pointer harness was scrapped as premature abstraction (Session 18): `LineFn` is an interface with one implementor. Timing before `mainLoop()` already avoids the upload/barriers/vsync-blocked present — the real objection — and DCE is a non-issue in the app (`drawFrame` memcpys the buffer every frame) |
+| Rung selection at bench time | Three separate timed loops, direct calls | No function pointer needed once `bench/` is gone; each rung gets its own `Timer` span over the same pre-generated line list |
+| Zero-length line (`a == b`) | **Draws nothing** — early `return` when `delta_x == 0` | Post-normalization `\|delta_x\| >= \|delta_y\|`, so `delta_x == 0` ⟺ `a == b`. A degenerate mesh edge is not a line; dropping it beats scattering stray dots from bad model data. Consequence: endpoint-inclusivity has a carve-out at the limit — `(5,5)→(6,5)` draws 2 px, `(5,5)→(5,5)` draws 0 |
 | Animation control | Delta-time in `Application`, not in `drawLine` | dt lives with the loop; `drawLine` stays pure/benchmarkable |
 | Reveal speed | `rate * elapsed` (dt-scaled), no sleep | Frame-rate independent; sleep only for optional FPS cap |
 | Slice parameter | _(to emerge)_ | Let the animation goal surface the need for a stop-count |
@@ -115,36 +160,41 @@ the display only samples the framebuffer once per `drawFrame`.
 - `void drawLineNaive(Vec2i a, Vec2i b, Color color, Framebuffer& fb)` — rung 1. Float
   `minor_axis_step * i` + `std::round` per pixel. Correct, all 8 octants. **Done.**
 - `void drawLineAccum(Vec2i a, Vec2i b, Color color, Framebuffer& fb)` — rung 2. Hoists the
-  multiply into a `float y_acc += minor_axis_step`. Keeps `std::round` (dropping it for
-  `static_cast` would change *which* pixels light up — truncate-toward-zero vs. nearest — and
-  conflate two changes). _(to write)_
-- `void drawLineBresenham(Vec2i a, Vec2i b, Color color, Framebuffer& fb)` — rung 3. Integer
-  error term scaled by `delta_x`; add + compare only. _(to write)_
+  multiply into a `float minor_step_accumulation += minor_axis_step`. Keeps `std::round` (dropping
+  it for `static_cast` would change *which* pixels light up — truncate-toward-zero vs. nearest —
+  and conflate two changes). **Done.** (Measured *slower* than naive — see findings above.)
+- `void drawLineBresenham(Vec2i a, Vec2i b, Color color, Framebuffer& fb)` — rung 3. All-integer:
+  `error += 2·|delta_y|`, tick `minor` by `minor_direction` when `error >= delta_x`, carry
+  `error -= 2·delta_x`. No float in the loop. **Done — the winner, ~0.65× naive.**
 
 **File-local (anonymous namespace):**
-- `bool normalize(Vec2i& a, Vec2i& b)` — steep test → transpose → endpoint swap; returns whether
-  transposed. Shared by all three rungs; caller recomputes deltas afterward.
+- `bool toShallowLeftToRight(Vec2i& a, Vec2i& b)` — steep test → transpose → endpoint swap; returns
+  whether transposed. Shared by all three rungs; caller recomputes deltas afterward. (Named to
+  avoid `normalize`, which is reserved for vector normalization in `src/math/`.)
 
 (A stop-count parameter is expected to emerge for the animated reveal.)
 
-### `bench/bench_linedrawer.cpp`
-**Responsibility:** time the rungs against each other. Standalone `main()`; links
-`LineDrawer.cpp` + `Framebuffer.cpp` only (no Vulkan/GLFW/Catch2). First consumer of `Timer` —
-closes the Phase 0.3 exit condition, open since Session 4.
+### `Application::testDrawLineAlgorithms()` (the benchmark — `bench/` was scrapped)
+**Responsibility:** time the rungs against each other. Lives in `Application`, called in `run()`
+**before** `mainLoop()`. First consumer of `Timer` — closes the Phase 0.3 exit condition, open
+since Session 4.
 **Method:**
-- Fixed-seed RNG, lines **pre-generated into a vector before `timer.start()`** (RNG cost is
-  identical across rungs and would only dilute the difference).
-- All rungs draw the *same* lines.
-- Build with optimizations or the numbers are meaningless — the root CMakeLists never sets
-  `CMAKE_BUILD_TYPE`, so `build_wsl` is `-O0`:
-  `cmake -S . -B build_release -G Ninja -DCMAKE_BUILD_TYPE=Release`
-- Print a byte from `fb.getData()` after the timer stops, so the writes stay observable and the
-  optimizer can't legally delete the timed loop. (Cheap insurance; a cross-TU call probably
-  prevents this anyway, but a `0 ms` result is a confusing thing to debug.)
-- Random lines make warm-up and min-of-N refinements unnecessary — fixed costs amortize across
-  ~1M draws.
-**Not** benchmarked through the app's main loop: that would time the memcpy, upload, barriers,
-and a vsync-blocked present — i.e. mostly the monitor's refresh rate.
+- Fixed-seed `std::mt19937(147)` + two `uniform_int_distribution`s (one engine, two distributions
+  — two same-seeded engines would put every point on `y = x`). Lines **pre-generated into a vector
+  before `timer.start()`**; RNG cost is identical across rungs and would only dilute the difference.
+- Rejection filter `max(|dx|,|dy|) >= 200` (major-axis extent = the loop's iteration count), so
+  pixel count dominates per-call overhead. 100k lines.
+- All three rungs draw the *same* lines, each in its own `Timer` span. **Differential correctness
+  check for free:** naive→red, accum→green, bresenham→blue over each other; `setPixel` overwrites
+  with no blending, so any surviving red/green pixel is a divergence. Clean all-blue = identical.
+- Build **Release** or the numbers are meaningless — the root CMakeLists never sets
+  `CMAKE_BUILD_TYPE`. MSVC is multi-config: `cmake --build build --config Release`, run
+  `build\Release\...`. (Bare `cmake --build build` = Debug, where `/Od` overhead swamps the inner
+  loop and the rungs are indistinguishable.)
+- DCE is a non-issue in the app: `drawFrame` memcpys the whole framebuffer every frame, so the
+  writes are observed.
+**Not** benchmarked through the main loop: that would time the memcpy, upload, barriers, and a
+vsync-blocked present — i.e. mostly the monitor's refresh rate.
 
 ### `src/Application` (changes)
 - Delta-time game loop; `Timer` supplies `dt`; producer draws lines into `framebuffer_`.
