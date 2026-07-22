@@ -50,6 +50,7 @@ private:
 
     // testing helpers
     void testDrawLineAlgorithms();
+    void testDrawTriangleAlgorithms();
 
     static constexpr uint32_t WIDTH = 800;
     static constexpr uint32_t HEIGHT = 600;

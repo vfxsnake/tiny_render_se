@@ -53,6 +53,7 @@ add_executable(TinyRendererSE
     src/Application.cpp
     src/rasterizer/Framebuffer.cpp
     src/rasterizer/LineDrawer.cpp
+    src/rasterizer/TriangleRasterizer.cpp
     src/display/DisplayPipeline.cpp
     src/display/GraphicsPipeline.cpp
     ${ENGINE_SRC}/core/VulkanContext.cpp

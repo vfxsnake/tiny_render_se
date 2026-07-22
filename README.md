@@ -11,6 +11,20 @@ A second phase (planned) will port the rasterizer algorithms to GPU compute shad
 
 ---
 
+## Current status
+
+**As of 2026-07-22 — Lesson 2 (Triangle Rasterization), in progress.**
+
+Overall arc: work through the TinyRenderer lessons in order (CPU rasterizer, by hand) until an OBJ model head renders shaded in the live window, then a **Phase 2** ports the algorithms to GPU compute shaders using the CPU version as reference.
+
+- **Phase 0 — Display pipeline: complete.** CPU framebuffer uploads to a Vulkan texture each frame and renders live in the window (fullscreen triangle, dynamic rendering). Tagged `phase0-display-complete` — this is the renderer-agnostic seed reused by a separate planned **Ray Tracing in One Weekend** project.
+- **Lesson 1 — Line drawing: complete.** Naive → accumulator → integer-Bresenham ladder, benchmarked and unit-tested (differential test across all three rungs).
+- **Lesson 2 — Triangle rasterization: in progress.** Scanline fill rung working on screen; bounding-box + barycentric rung, benchmark, and tests still to come. Next lessons pull in `Vec3` + an OBJ loader as the head model demands them.
+
+Full per-session history and decisions live in [`docs/session_log.md`](docs/session_log.md); per-lesson design docs in [`docs/lessons/`](docs/lessons/).
+
+---
+
 ## Architecture
 
 ```
@@ -70,9 +84,9 @@ The project follows the TinyRenderer lesson sequence. Each lesson adds one or mo
 
 | # | Topic | Status |
 |---|-------|--------|
-| 0 | Display pipeline (Vulkan window + CPU framebuffer upload) | In progress |
-| 1 | Line drawing (Bresenham) | Planned |
-| 2 | Triangle rasterization | Planned |
+| 0 | Display pipeline (Vulkan window + CPU framebuffer upload) | Complete |
+| 1 | Line drawing (Bresenham) | Complete |
+| 2 | Triangle rasterization | In progress |
 | 3 | Hidden face removal (z-buffer) | Planned |
 | 4 | Texture mapping | Planned |
 | 5 | Lighting (Gouraud, Phong) | Planned |

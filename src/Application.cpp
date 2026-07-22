@@ -12,6 +12,7 @@
 #include "display/DisplayPipeline.h"
 #include "rasterizer/Color.h"
 #include "rasterizer/LineDrawer.h"
+#include "rasterizer/TriangleRasterizer.h"
 #include "utils/Timer.h"
 
 
@@ -40,19 +41,11 @@ void Application::run()
     Color red{255, 0, 0, 255};
     Color green{0, 255, 0, 255};
     Color blue{0, 0, 255, 255};
-        
-    framebuffer_.clear(black);
-    
-    // Vec2i point_1{100, 100};
-    // Vec2i point_2{500, 200};
-    // Vec2i point_3{300, 500};
-    // LineDrawer::drawLineNaive(point_2, point_1, red, framebuffer_);
-    // LineDrawer::drawLineNaive(point_3, point_2, green, framebuffer_);
-    // LineDrawer::drawLineNaive(point_1, point_3, blue, framebuffer_);
 
-    // Vec2i point_4{150, 150};
-    // LineDrawer::drawLineNaive(point_4, point_4, white, framebuffer_);
-    testDrawLineAlgorithms();
+    // algorithms test:
+    // testDrawLineAlgorithms();
+    testDrawTriangleAlgorithms();
+
     mainLoop();
 }
 
@@ -171,4 +164,15 @@ void Application::testDrawLineAlgorithms()
     }
     timer.stop();
     std::cout << "drawLine Bresenham processing time: " << timer.elapsedMs() << "ms.\n";
+}
+
+
+void Application::testDrawTriangleAlgorithms()
+{
+    Triangle triangle{Vec2i(100, 500), Vec2i(200, 100), Vec2i(700, 400)};
+
+    Color white{255, 255, 255, 255};
+    Color red{255, 0, 0, 255};
+
+    TriangleRasterizer::drawTriangleScanline(triangle, red, framebuffer_);
 }
