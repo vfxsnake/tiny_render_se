@@ -21,7 +21,7 @@ Overall arc: work through the TinyRenderer lessons in order (CPU rasterizer, by 
 - **Lesson 1 — Line drawing: complete.** Naive → accumulator → integer-Bresenham ladder, benchmarked and unit-tested (differential test across all three rungs).
 - **Lesson 2 — Triangle rasterization: in progress.** Scanline fill rung working on screen; bounding-box + barycentric rung, benchmark, and tests still to come. Next lessons pull in `Vec3` + an OBJ loader as the head model demands them.
 
-Full per-session history and decisions live in [`docs/session_log.md`](docs/session_log.md); per-lesson design docs in [`docs/lessons/`](docs/lessons/).
+Per-lesson design docs live in [`docs/lessons/`](docs/lessons/).
 
 ---
 
