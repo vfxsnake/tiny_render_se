@@ -41,9 +41,25 @@ target_link_libraries(test_linedrawer PRIVATE
     Catch2::Catch2WithMain
 )
 
+# TriangleRasterizer test block
+add_executable(test_triangle_rasterizer
+    test_triangle_rasterizer.cpp
+    ${CMAKE_SOURCE_DIR}/src/rasterizer/TriangleRasterizer.cpp
+    ${CMAKE_SOURCE_DIR}/src/rasterizer/Framebuffer.cpp
+)
+
+target_include_directories(test_triangle_rasterizer PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+target_link_libraries(test_triangle_rasterizer PRIVATE
+    Catch2::Catch2WithMain
+)
+
 # appending test
 list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 include(Catch)
 catch_discover_tests(test_framebuffer)
 catch_discover_tests(test_vec2)
 catch_discover_tests(test_linedrawer)
+catch_discover_tests(test_triangle_rasterizer)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <utility>
+#include <algorithm>
 #include <array>
 
 #include "math/Vec2.h"
@@ -39,11 +40,19 @@ struct Triangle
         return vertices;
     }
 
-    std::pair<int, int> getXBounds()
+    std::pair<int, int> getXBounds() const
     {
         return {
-            std::min(std::min(a.x, b.x), c.x),
-            std::max(std::max(a.x, b.x), c.x)
+            std::min({a.x, b.x, c.x}),
+            std::max({a.x, b.x, c.x})
+        };
+    }
+
+    std::pair<int, int> getYBounds() const
+    {
+        return {
+            std::min({a.y, b.y, c.y}),
+            std::max({a.y, b.y, c.y})
         };
     }
 };

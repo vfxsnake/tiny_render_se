@@ -169,10 +169,58 @@ void Application::testDrawLineAlgorithms()
 
 void Application::testDrawTriangleAlgorithms()
 {
-    Triangle triangle{Vec2i(100, 500), Vec2i(200, 100), Vec2i(700, 400)};
+    // generate triangles
+    // initializing Mersenne twister engine with the static seed
+    std::mt19937 gen(1313);
 
+    // defining the range
+    std::uniform_int_distribution<int> dist_x{0, WIDTH - 1};
+    std::uniform_int_distribution<int> dist_y{0, HEIGHT - 1};
     Color white{255, 255, 255, 255};
     Color red{255, 0, 0, 255};
+    Color green{0, 255, 0, 255};
 
-    TriangleRasterizer::drawTriangleScanline(triangle, red, framebuffer_);
-}
+    int triangle_count = 0;
+    std::vector<std::array<Vec2i,3>> points_array_list;
+    while (triangle_count < 1000)
+    {
+        Vec2i a = {dist_x(gen), dist_y(gen)};
+        Vec2i b = {dist_x(gen), dist_y(gen)};
+        Vec2i c = {dist_x(gen), dist_y(gen)};
+
+        std::array<Vec2i,3> triangle_points = {a, b, c};
+        int min_x = std::min({a.x, b.x, c.x});
+        int max_x = std::max({a.x, b.x, c.x});
+        int min_y = std::min({a.y, b.y, c.y});
+        int max_y = std::max({a.y, b.y, c.y});
+        
+        if (max_x -min_x > 400 || max_y - min_y > 400 )
+        {
+            continue;
+        }
+
+        points_array_list.push_back(triangle_points);
+        triangle_count += 1;
+    }
+
+    Timer timer;
+
+    timer.start();
+    for (auto point_array : points_array_list)
+    {
+        Triangle triangle{point_array[0], point_array[1], point_array[2]};
+        TriangleRasterizer::drawTriangleScanline(triangle, red, framebuffer_);
+    }
+    timer.stop();
+    std::cout << "drawTriangle rasterize processing time: " << timer.elapsedMs() << "ms.\n";
+    
+    timer.start();
+    for (auto point_array : points_array_list)
+    {
+        Triangle triangle{point_array[0], point_array[1], point_array[2]};
+        TriangleRasterizer::drawTriangle(triangle, green, framebuffer_);
+
+    }
+    timer.stop();
+    std::cout << "drawTriangle barycentric processing time: " << timer.elapsedMs() << "ms.\n";
+}   

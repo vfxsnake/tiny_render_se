@@ -13,6 +13,11 @@ void TriangleRasterizer::drawTriangleScanline(
     Framebuffer& frame_buffer
 )
 {
+    if (cross(triangle.b - triangle.a, triangle.c - triangle.a) == 0)
+    {
+        return;
+    }
+
     std::array<Vec2i, 3> vertices = triangle.sortedByY();
     // auto [min_x_bound, max_x_bound] = triangle.getXBounds();
 
@@ -90,6 +95,41 @@ void TriangleRasterizer::drawTriangleScanline(
             }
             
             frame_buffer.setPixel(x, y, color);
+        }
+    }
+}
+
+
+void TriangleRasterizer::drawTriangle(
+    Triangle triangle,
+    Color color,
+    Framebuffer& frame_buffer
+)
+{
+    if (cross(triangle.b - triangle.a, triangle.c - triangle.a) == 0)
+    {
+        return;
+    }
+    // bounding box extraction
+    auto [bbox_x_min, bbox_x_max] = triangle.getXBounds(); 
+    auto [bbox_y_min, bbox_y_max] = triangle.getYBounds();
+
+    for (int y = bbox_y_min; y <= bbox_y_max; y++)
+    {
+        for (int x = bbox_x_min; x <= bbox_x_max; x++)
+        {
+            Vec2i current_position{x, y};
+            int weight_0 = cross(triangle.c - triangle.b, current_position - triangle.b);
+            int weight_1 = cross(triangle.a - triangle.c, current_position - triangle.c);
+            int weight_2 = cross(triangle.b - triangle.a, current_position - triangle.a);
+
+            bool all_positive = (weight_0 >= 0 && weight_1 >= 0 && weight_2 >= 0);
+            bool all_negative = (weight_0 <= 0 && weight_1 <= 0 && weight_2 <= 0);
+            
+            if (all_positive || all_negative)
+            {
+                frame_buffer.setPixel(x, y, color);
+            }
         }
     }
 }
