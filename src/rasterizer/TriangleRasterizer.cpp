@@ -59,10 +59,21 @@ void TriangleRasterizer::drawTriangleScanline(
         }
         
         float y_long_t = (y - vertices[0].y) / float(vertices[2].y - vertices[0].y);
-        float y_short_t = (y - vertices[1].y) / float(vertices[2].y - vertices[1].y);
-        
         int x_bound_0 = vertices[0].x + (vertices[2].x - vertices[0].x) * y_long_t;
-        int x_bound_1 = vertices[1].x + (vertices[2].x - vertices[1].x) * y_short_t;
+        
+        int x_bound_1;
+        // check for flat bottom vertices[2].y == vertices[1].y
+        int delta_y = vertices[2].y - vertices[1].y;
+    
+        if (delta_y == 0)
+        {
+            x_bound_1 = vertices[1].x;
+        }
+        else
+        {
+            x_bound_1 = vertices[1].x + (vertices[2].x - vertices[1].x) * (y - vertices[1].y) /  float(delta_y);
+        }
+        
         
         if (x_bound_0 > x_bound_1)
         {
