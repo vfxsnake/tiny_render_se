@@ -13,13 +13,14 @@ A second phase (planned) will port the rasterizer algorithms to GPU compute shad
 
 ## Current status
 
-**As of 2026-07-23 — Lesson 2 (Triangle Rasterization) complete; Lesson 3 next.**
+**As of 2026-07-24 — Lesson 3 (Hidden face removal / z-buffer) in progress: kick-off + design done, implementation not started.**
 
 Overall arc: work through the TinyRenderer lessons in order (CPU rasterizer, by hand) until an OBJ model head renders shaded in the live window, then a **Phase 2** ports the algorithms to GPU compute shaders using the CPU version as reference.
 
 - **Phase 0 — Display pipeline: complete.** CPU framebuffer uploads to a Vulkan texture each frame and renders live in the window (fullscreen triangle, dynamic rendering). Tagged `phase0-display-complete` — this is the renderer-agnostic seed reused by a separate planned **Ray Tracing in One Weekend** project.
 - **Lesson 1 — Line drawing: complete.** Naive → accumulator → integer-Bresenham ladder, benchmarked and unit-tested (differential test across all three rungs).
-- **Lesson 2 — Triangle rasterization: complete.** Two rungs benchmarked (scanline vs bounding-box + barycentric); barycentric shipped as `drawTriangle` — slower on scalar CPU (~2.4–2.9×) but the pixel-independent, GPU-portable path. `Vec2` gained `cross`/`operator-`; unit-tested. Next lessons pull in `Vec3` + an OBJ loader as the head model demands them.
+- **Lesson 2 — Triangle rasterization: complete.** Two rungs benchmarked (scanline vs bounding-box + barycentric); barycentric shipped as `drawTriangle` — slower on scalar CPU (~2.4–2.9×) but the pixel-independent, GPU-portable path. `Vec2` gained `cross`/`operator-`; unit-tested.
+- **Lesson 3 — Hidden face removal (z-buffer): in progress.** Kick-off + design complete, plan doc written; implementation not started. Pulls in `Vec3`, an OBJ loader, orthographic projection, barycentric depth interpolation, and the per-pixel depth test (finalizing the depth convention: clear `0.0f` = far, keep larger z). Also introduces the `tinymath` namespace and a square (800×800) window.
 
 Per-lesson design docs live in [`docs/lessons/`](docs/lessons/).
 
@@ -87,7 +88,7 @@ The project follows the TinyRenderer lesson sequence. Each lesson adds one or mo
 | 0 | Display pipeline (Vulkan window + CPU framebuffer upload) | Complete |
 | 1 | Line drawing (Bresenham) | Complete |
 | 2 | Triangle rasterization | Complete |
-| 3 | Hidden face removal (z-buffer) | Planned |
+| 3 | Hidden face removal (z-buffer) | In progress |
 | 4 | Texture mapping | Planned |
 | 5 | Lighting (Gouraud, Phong) | Planned |
 | 6 | Camera & perspective | Planned |
