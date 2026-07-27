@@ -106,8 +106,8 @@ TEST_CASE("drawLine steep line has no gaps on the major (y) axis", "[linedrawer]
 TEST_CASE("drawLine sets both endpoints", "[linedrawer]")
 {
     Framebuffer fb(32, 32);
-    Vec2i a{3, 5};
-    Vec2i b{20, 14};
+    tinymath::Vec2i a{3, 5};
+    tinymath::Vec2i b{20, 14};
     LineDrawer::drawLine(a, b, WHITE, fb);
 
     REQUIRE(isSet(fb, a.x, a.y));
@@ -117,8 +117,8 @@ TEST_CASE("drawLine sets both endpoints", "[linedrawer]")
 
 TEST_CASE("drawLine is direction-agnostic: draw(a,b) == draw(b,a)", "[linedrawer]")
 {
-    Vec2i a{3, 5};
-    Vec2i b{20, 14};
+    tinymath::Vec2i a{3, 5};
+    tinymath::Vec2i b{20, 14};
 
     Framebuffer forward(32, 32);
     Framebuffer backward(32, 32);
@@ -142,8 +142,8 @@ TEST_CASE("drawLine with zero-length input (a == b) draws nothing", "[linedrawer
 // differential test nor a shape test can prove this for every octant at once.
 TEST_CASE("naive, accum and Bresenham light identical pixels across all octants", "[linedrawer]")
 {
-    const Vec2i center{16, 16};
-    const std::vector<Vec2i> endpoints = {
+    const tinymath::Vec2i center{16, 16};
+    const std::vector<tinymath::Vec2i> endpoints = {
         {28, 16}, // horizontal +x
         { 4, 16}, // horizontal -x
         {16, 28}, // vertical   +y
@@ -162,7 +162,7 @@ TEST_CASE("naive, accum and Bresenham light identical pixels across all octants"
         { 4,  4}, // 45         -x -y
     };
 
-    for (const Vec2i& end : endpoints)
+    for (const tinymath::Vec2i& end : endpoints)
     {
         Framebuffer naive(32, 32);
         Framebuffer accum(32, 32);

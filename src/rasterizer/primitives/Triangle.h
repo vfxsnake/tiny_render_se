@@ -9,17 +9,17 @@
 
 struct Triangle
 {
-    Vec2i a;
-    Vec2i b;
-    Vec2i c;
+    tinymath::Vec2i a;
+    tinymath::Vec2i b;
+    tinymath::Vec2i c;
 
     /*
         Function for showing the triangle data sorted by 
         the component "y" it does not alter the triangle data order.
     */
-    std::array<Vec2i, 3> sortedByY() const
+    std::array<tinymath::Vec2i, 3> sortedByY() const
     {
-        std::array<Vec2i, 3> vertices{a, b, c};
+        std::array<tinymath::Vec2i, 3> vertices{a, b, c};
 
         // swap by comparison
         if (vertices[0].y > vertices[1].y)

@@ -26,6 +26,20 @@ target_link_libraries(test_vec2 PRIVATE
     Catch2::Catch2WithMain
 )
 
+# Vect3 test block
+add_executable(test_vec3
+    test_vec3.cpp
+    ${CMAKE_SOURCE_DIR}/src/math/Vec3.h
+)
+
+target_include_directories(test_vec3 PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+target_link_libraries(test_vec3 PRIVATE
+    Catch2::Catch2WithMain
+)
+
 # LineDrawer test block
 add_executable(test_linedrawer
     test_linedrawer.cpp
@@ -61,5 +75,6 @@ list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 include(Catch)
 catch_discover_tests(test_framebuffer)
 catch_discover_tests(test_vec2)
+catch_discover_tests(test_vec3)
 catch_discover_tests(test_linedrawer)
 catch_discover_tests(test_triangle_rasterizer)

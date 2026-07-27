@@ -117,12 +117,12 @@ void Application::testDrawLineAlgorithms()
     std::uniform_int_distribution<int> dist_y{0, HEIGHT - 1};
 
     // constructing a list of valid lines
-    std::vector<std::array<Vec2i, 2>> line_list;
+    std::vector<std::array<tinymath::Vec2i, 2>> line_list;
     int line_count = 0;
     while (line_count < 100000)
     {
-        Vec2i a = {dist_x(gen), dist_y(gen)};
-        Vec2i b = {dist_x(gen), dist_y(gen)};
+        tinymath::Vec2i a = {dist_x(gen), dist_y(gen)};
+        tinymath::Vec2i b = {dist_x(gen), dist_y(gen)};
 
         if (std::abs(b.x - a.x) >= 200 || std::abs(b.y - a.y) >= 200)
         {
@@ -181,14 +181,14 @@ void Application::testDrawTriangleAlgorithms()
     Color green{0, 255, 0, 255};
 
     int triangle_count = 0;
-    std::vector<std::array<Vec2i,3>> points_array_list;
+    std::vector<std::array<tinymath::Vec2i,3>> points_array_list;
     while (triangle_count < 1000)
     {
-        Vec2i a = {dist_x(gen), dist_y(gen)};
-        Vec2i b = {dist_x(gen), dist_y(gen)};
-        Vec2i c = {dist_x(gen), dist_y(gen)};
+        tinymath::Vec2i a = {dist_x(gen), dist_y(gen)};
+        tinymath::Vec2i b = {dist_x(gen), dist_y(gen)};
+        tinymath::Vec2i c = {dist_x(gen), dist_y(gen)};
 
-        std::array<Vec2i,3> triangle_points = {a, b, c};
+        std::array<tinymath::Vec2i,3> triangle_points = {a, b, c};
         int min_x = std::min({a.x, b.x, c.x});
         int max_x = std::max({a.x, b.x, c.x});
         int min_y = std::min({a.y, b.y, c.y});

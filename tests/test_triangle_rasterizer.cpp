@@ -16,15 +16,15 @@ namespace
     // Right triangle on a 16x16 buffer: right angle at (2,2), legs along the
     // axes, hypotenuse on the line x + y = 16. Interior is x >= 2, y >= 2,
     // x + y <= 16 — easy to reason about which pixels are in/out/on an edge.
-    const Triangle TRI{Vec2i{2, 2}, Vec2i{14, 2}, Vec2i{2, 14}};
+    const Triangle TRI{tinymath::Vec2i{2, 2}, tinymath::Vec2i{14, 2}, tinymath::Vec2i{2, 14}};
 
     // Strictly inside — no pixel sits on an edge, so both rungs must fill them.
-    const std::vector<Vec2i> INTERIOR = {
+    const std::vector<tinymath::Vec2i> INTERIOR = {
         {3, 3}, {4, 4}, {5, 5}, {7, 4}, {4, 7},
     };
 
     // Clearly outside: beyond the hypotenuse, or past a leg.
-    const std::vector<Vec2i> EXTERIOR = {
+    const std::vector<tinymath::Vec2i> EXTERIOR = {
         {10, 10}, {12, 12}, {15, 15}, {1, 10}, {10, 1},
     };
 
@@ -75,12 +75,12 @@ TEST_CASE("both rungs fill the interior and leave the exterior clear", "[triangl
         Framebuffer fb(16, 16);
         rung.fn(TRI, WHITE, fb);
 
-        for (const Vec2i& p : INTERIOR)
+        for (const tinymath::Vec2i& p : INTERIOR)
         {
             INFO(rung.name << " interior (" << p.x << ", " << p.y << ")");
             REQUIRE(isSet(fb, p.x, p.y));
         }
-        for (const Vec2i& p : EXTERIOR)
+        for (const tinymath::Vec2i& p : EXTERIOR)
         {
             INFO(rung.name << " exterior (" << p.x << ", " << p.y << ")");
             REQUIRE_FALSE(isSet(fb, p.x, p.y));
@@ -104,7 +104,7 @@ TEST_CASE("drawTriangle includes edge pixels (>= 0 convention)", "[triangle]")
 
 TEST_CASE("both rungs draw nothing for a degenerate (collinear) triangle", "[triangle]")
 {
-    const Triangle degenerate{Vec2i{2, 2}, Vec2i{6, 6}, Vec2i{10, 10}};
+    const Triangle degenerate{tinymath::Vec2i{2, 2}, tinymath::Vec2i{6, 6}, tinymath::Vec2i{10, 10}};
 
     for (const Rung& rung : RUNGS)
     {

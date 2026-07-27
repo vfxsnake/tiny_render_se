@@ -18,7 +18,7 @@ void TriangleRasterizer::drawTriangleScanline(
         return;
     }
 
-    std::array<Vec2i, 3> vertices = triangle.sortedByY();
+    std::array<tinymath::Vec2i, 3> vertices = triangle.sortedByY();
     // auto [min_x_bound, max_x_bound] = triangle.getXBounds();
 
     // long and mid segments, first half, runs along the large segment until the end of the middle.
@@ -118,7 +118,7 @@ void TriangleRasterizer::drawTriangle(
     {
         for (int x = bbox_x_min; x <= bbox_x_max; x++)
         {
-            Vec2i current_position{x, y};
+            tinymath::Vec2i current_position{x, y};
             int weight_0 = cross(triangle.c - triangle.b, current_position - triangle.b);
             int weight_1 = cross(triangle.a - triangle.c, current_position - triangle.c);
             int weight_2 = cross(triangle.b - triangle.a, current_position - triangle.a);

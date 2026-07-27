@@ -9,10 +9,10 @@ class Framebuffer;
 
 namespace LineDrawer
 {
-    void drawLineNaive(Vec2i a, Vec2i b, Color color, Framebuffer& frame_buffer);
+    void drawLineNaive(tinymath::Vec2i a, tinymath::Vec2i b, Color color, Framebuffer& frame_buffer);
 
-    void drawLineAccum(Vec2i a, Vec2i b, Color color, Framebuffer& frame_buffer);
+    void drawLineAccum(tinymath::Vec2i a, tinymath::Vec2i b, Color color, Framebuffer& frame_buffer);
 
-    void drawLine(Vec2i a, Vec2i b, Color color, Framebuffer& frame_buffer);
+    void drawLine(tinymath::Vec2i a, tinymath::Vec2i b, Color color, Framebuffer& frame_buffer);
     
 } // end of LineDrawer namespace

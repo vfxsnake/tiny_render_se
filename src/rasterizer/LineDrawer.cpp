@@ -9,7 +9,7 @@
 namespace
 {
     [[nodiscard]]
-    bool toShallowLeftToRight(Vec2i& a, Vec2i& b)
+    bool toShallowLeftToRight(tinymath::Vec2i& a, tinymath::Vec2i& b)
     {
         bool y_major = false;
 
@@ -32,7 +32,7 @@ namespace
     }
 }
 
-void LineDrawer::drawLineNaive(Vec2i a, Vec2i b, Color color, Framebuffer& frame_buffer)
+void LineDrawer::drawLineNaive(tinymath::Vec2i a, tinymath::Vec2i b, Color color, Framebuffer& frame_buffer)
 {
     bool y_major = toShallowLeftToRight(a, b);
     
@@ -65,7 +65,7 @@ void LineDrawer::drawLineNaive(Vec2i a, Vec2i b, Color color, Framebuffer& frame
     }   
 }
 
-void LineDrawer::drawLineAccum(Vec2i a, Vec2i b, Color color, Framebuffer& frame_buffer)
+void LineDrawer::drawLineAccum(tinymath::Vec2i a, tinymath::Vec2i b, Color color, Framebuffer& frame_buffer)
 {
     bool y_major = toShallowLeftToRight(a, b);
     
@@ -104,7 +104,7 @@ void LineDrawer::drawLineAccum(Vec2i a, Vec2i b, Color color, Framebuffer& frame
 /*
     Implementation of the Bresenham draw line algorithm.   
 */
-void LineDrawer::drawLine(Vec2i a, Vec2i b, Color color, Framebuffer& frame_buffer)
+void LineDrawer::drawLine(tinymath::Vec2i a, tinymath::Vec2i b, Color color, Framebuffer& frame_buffer)
 {
     bool y_major = toShallowLeftToRight(a, b);
     

@@ -38,9 +38,9 @@ private:
         
         framebuffer_.clear(black);
 
-        Vec2i point_1{100, 100};
-        Vec2i point_2{700, 100};
-        Vec2i point_3{100, 500};
+        tinymath::Vec2i point_1{100, 100};
+        tinymath::Vec2i point_2{700, 100};
+        tinymath::Vec2i point_3{100, 500};
 
         framebuffer_.setPixel(point_1.x, point_1.y, white);
         framebuffer_.setPixel(point_2.x, point_2.y, white);
