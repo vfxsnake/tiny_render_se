@@ -71,11 +71,25 @@ cd tiny_render_se
 cmake -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 
-# Run
+# Run — from the repository root, see note below
 ./build/TinyRendererSE
 ```
 
 Requires a Vulkan-capable GPU and the LunarG Vulkan SDK installed.
+
+### Models
+
+Model and texture assets are **not tracked in this repository** (`.obj`, `.tga` and `.png` are gitignored — they are large binaries owned by the upstream lesson series). From Lesson 3 onward the renderer needs them, and will throw on startup if they are missing.
+
+```bash
+# From the repository root
+git clone --depth 1 https://github.com/ssloy/tinyrenderer /tmp/tinyrenderer
+cp -r /tmp/tinyrenderer/obj models/
+```
+
+This yields `models/obj/african_head/african_head.obj` and friends.
+
+> Asset paths are resolved against the **current working directory**, not the executable — run the binary from the repository root, or the model will not be found.
 
 ---
 
