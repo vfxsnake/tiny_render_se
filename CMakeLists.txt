@@ -56,6 +56,8 @@ add_executable(TinyRendererSE
     src/rasterizer/TriangleRasterizer.cpp
     src/display/DisplayPipeline.cpp
     src/display/GraphicsPipeline.cpp
+    src/io/ObjLoader.cpp
+    src/math/Projection.cpp
     ${ENGINE_SRC}/core/VulkanContext.cpp
     ${ENGINE_SRC}/core/SwapChain.cpp
 )

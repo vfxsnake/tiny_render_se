@@ -14,7 +14,8 @@ Framebuffer::Framebuffer(int width, int height) :
 
 int Framebuffer::index(int x, int y) const
 {
-    return ((y * width_) + x);
+    // flipping y here, so 0,0 becomes the bottom left corner. 
+    return (((height_ -1 - y) * width_) + x);
 }
 
 
@@ -43,6 +44,16 @@ float Framebuffer::getDepth(int x, int y) const
 {
     if(!inBounds(x, y)) return 0.0f; 
     return depth_[index(x, y)];
+}
+
+Color Framebuffer::getPixel(int x, int y) const
+{
+    if(!inBounds(x, y))
+    {
+        return {0, 0 , 0, 0};   
+    }
+
+    return pixels_[index(x, y)];
 }
 
 int Framebuffer::getWidth() const

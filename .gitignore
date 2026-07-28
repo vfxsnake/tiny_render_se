@@ -74,12 +74,11 @@ vcpkg_installed/
 Testing/
 .cache/
 
-# obj files and textures
+# files and textures
 *.png
 *.tga
-*.obj
 
-# specific files:
+# specific files or folders:
 CLAUDE.md
 docs/session_log.md
 obj

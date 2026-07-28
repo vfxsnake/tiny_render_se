@@ -44,8 +44,8 @@ namespace
     // A pixel counts as "set" if any channel is non-zero (the framebuffer clears to all-zero).
     bool isSet(const Framebuffer& fb, int x, int y)
     {
-        const uint8_t* pixel = fb.getData() + (y * fb.getWidth() + x) * sizeof(Color);
-        return pixel[0] != 0 || pixel[1] != 0 || pixel[2] != 0 || pixel[3] != 0;
+        Color pixel = fb.getPixel(x, y);
+        return pixel.r != 0 || pixel.g != 0 || pixel.b != 0 || pixel.a != 0;
     }
 
     int countSetPixels(const Framebuffer& fb)

@@ -17,6 +17,8 @@ public:
     void setDepth(int x, int y, float depth);
     
     float getDepth(int x, int y) const;
+    Color getPixel(int x, int y) const;
+    
     int getWidth() const;
     int getHeight() const;
 

@@ -53,7 +53,7 @@ private:
     void testDrawTriangleAlgorithms();
 
     static constexpr uint32_t WIDTH = 800;
-    static constexpr uint32_t HEIGHT = 600;
+    static constexpr uint32_t HEIGHT = 800;
     GLFWwindow* window_ = nullptr;
 
     Framebuffer framebuffer_;

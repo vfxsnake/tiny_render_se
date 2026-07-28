@@ -64,6 +64,8 @@ The head is a closed mesh with **consistent winding**, so a triangle facing away
 | **Namespace** | **`tinymath`** (lowercase); adopt in **one dedicated move-commit BEFORE Lesson 3 code** | The deferred "math namespace" move. Blast radius: `Vec2.h`, `test_vec2.cpp`, `LineDrawer.{h,cpp}`, `TriangleRasterizer.{h,cpp}`, `Triangle.h`. `math` isn't actually taken by std — `tinymath` chosen for clarity. |
 | OBJ loader | `src/io/ObjLoader.*`, free `loadObj(path)` → minimal mesh (`vector<Vec3f>` verts + `vector<array<int,3>>` faces); parse only `v` and the position index of each `f` group, ignore `vt`/`vn` | Asset I/O, not math or rasterization. Positions are all this lesson needs; UV/normal storage arrives with textures/shading. |
 | Projection | **free function in `tinymath`**, orthographic scale/shift now; **`Matrix4x4`-backed in Lesson 5** | Projection is coordinate-space math (its home is `tinymath` from day one); but a matrix to express a scale-and-shift is premature — build the matrix when the camera lesson demands it. |
+| Projection naming | **`orthographicProjection(point_position, …)`** — not bare `project(v, …)` | Explicit name lets a future `perspectiveProjection` slot in beside it with no rename (naming for clarity ≠ stubbing an unused function, which was rejected). `point_position` carries no mesh assumption; the function is pure coordinate-space math. |
+| **Y-axis flip placement** | **inside `Framebuffer::index()`** — `(height_ - 1 - y) * width_ + x` — *not* inside the projection | Model y grows up, screen rows grow down; one of the two must reverse it. `index()` is a single choke point shared by `setPixel`/`getPixel`/`setDepth`/`getDepth`, so colour and depth flip together by construction and the whole rasterizer thinks y-up. `getData()` stays raw top-left for the Vulkan upload, so the display pipeline was untouched. Cost: Lesson 1–2 positional tests had to be re-anchored (see Modules). |
 | Depth test placement | inside `drawTriangle`'s inner loop: `z > getDepth(px,py)` → `setDepth` + `setPixel` | The rasterizer owns the read-modify-write of the `Framebuffer`'s depth buffer. |
 | Pixel sample point | corner (`px,py`) vs center (`px+0.5,py+0.5`) — **decide when writing `drawTriangle`** | Center is more correct for coverage/tie-breaking; corner is simpler and matches Lesson 2. |
 | `cross` spelling on `Vec3` verts | pull a `Vec2` from `.x/.y`, or add a 2D-cross helper reading `.x/.y` — **decide when writing `drawTriangle`** | Minor ergonomics; the 2D signed area only uses x,y. |
@@ -88,9 +90,18 @@ The head is a closed mesh with **consistent winding**, so a triangle facing away
 ### `src/math/Vec2.h` (move into `tinymath`, retrofit)
 **Responsibility:** existing 2D vector, now namespaced; op set kept in step with `Vec3` as needed.
 
-### `src/math/Projection.h` (or similar, in `tinymath`)
+### `src/math/Projection.h/.cpp` (new, in `tinymath`)
+**Responsibility:** coordinate-space remap from normalized model space into screen space.
 **API:**
-- `Vec3f project(Vec3f v, int width, int height, float depth_scale)` — orthographic `(v+1)·scale/2` remap; z kept ≥ 0. Matrix-backed in Lesson 5.
+- `Vec3f orthographicProjection(Vec3f point_position, int screen_width, int screen_height, float depth_scale)` — orthographic `(v+1)·scale/2` remap on all three axes; z kept ≥ 0. Matrix-backed in Lesson 5.
+
+**Naming:** `orthographicProjection` (not bare `project`) so a future `perspectiveProjection` slots in beside it without a rename — naming for clarity, *not* a stubbed second function. Parameter is `point_position`, not `vertex`: the function is coordinate-space math and carries no mesh assumption.
+
+**No y-flip here.** The screen-space y reversal lives in `Framebuffer::index()` (see below), so this stays a pure scale-and-shift on all three axes.
+
+**Assumption:** input is already normalized to `[-1,1]` — a property of `african_head.obj`, not something this function enforces. Feed it an unnormalized model and it silently returns off-screen coordinates.
+
+**`.h`/`.cpp` split** (not header-only `inline`): the function is not templated, runs per-vertex rather than per-pixel (~1258 calls — inlining is noise), and the split removes the `inline` requirement permanently.
 
 ### `src/io/ObjLoader.h/.cpp` (new)
 **API:**
@@ -107,11 +118,31 @@ The head is a closed mesh with **consistent winding**, so a triangle facing away
 - `void drawTriangle(Triangle t, Color color, Framebuffer& frame_buffer)` — bbox → per-pixel sign reject → weights + `z = α·a.z+β·b.z+γ·c.z` → depth test → `setDepth`/`setPixel`.
 - `drawTriangleScanline` — migrate to `Vec3f` or retire (decide at implementation).
 
+### `src/rasterizer/Framebuffer.h/.cpp` (change) — y-axis origin flip
+**Decision:** the framebuffer origin moves to **bottom-left**. `index()` becomes `(height_ - 1 - y) * width_ + x`.
+
+**Why here and not in `orthographicProjection`:** the model's y grows up, screen rows grow down, so *something* must reverse y. Both placements work. Chosen: `Framebuffer`, because `index()` is a single private choke point that `setPixel`, `setDepth`, `getPixel` and `getDepth` all route through — colour and depth therefore flip together by construction, and the whole rasterizer gets to think y-up. `getData()` deliberately stays **raw top-left** row order, which is exactly what the Vulkan upload wants, so the display pipeline needed no change.
+
+**Consequence — the two coordinate systems must be kept straight:**
+| Path | Origin |
+|---|---|
+| `setPixel` / `getPixel` / `setDepth` / `getDepth` | bottom-left (y-up) |
+| `getData()` | top-left (raw memory) |
+
+**New API:** `Color getPixel(int x, int y) const` — added because tests had no accessor to read colour back and were hand-rolling `getData() + (y*width + x)`, bypassing `index()` entirely. Returns `Color{0,0,0,0}` out of bounds (same ambiguity as `getDepth`'s `0.0f`: indistinguishable from a legitimate black transparent pixel — fine for tests, a trap if rasterizer code ever branches on it).
+
+**`Color` gains `bool operator==(Color const&) const = default;`** (C++20 memberwise) so tests can compare colours directly.
+
+**Two testing lessons banked (both cost real debugging time):**
+1. *A test must read through the same abstraction it wrote through.* The six drawing-test failures were one bug in two `isSet()` helpers, not six mirrored expectations.
+2. *A symmetric test case can be geometrically incapable of failing.* `drawLine vertical` (y = 2..13 in a 16-tall buffer) passed through the flip because that range maps onto itself; `drawLine horizontal` (y = 8) failed. Same class of blind spot as the `Vec3::cross` typo that survived `{1,0,0}×{0,1,0}`. Anchor tests against raw memory, and pick asymmetric coordinates.
+
 ### `tests/test_vec3.cpp` (new)
 **Cases:** `+`/`-`/`*scalar`; `dot` known values; `cross` known values, anti-commutativity, parallel → zero.
 
 ### `tests/test_framebuffer.cpp` (extend)
 **Cases:** depth clear = `0.0f`; `setDepth`/`getDepth` round-trip; the `z > getDepth` keep/discard decision.
+**Added for the flip (done):** `getPixel` agrees with raw memory layout (the *anchor* — the only case that can catch an off-by-one inside `index()`, since every other test cancels the error across write and read); `getPixel` round-trips `setPixel` at asymmetric rows with distinct colours; `getPixel` out of bounds returns zero (buffer pre-cleared to non-zero so a stray in-bounds read can't masquerade as the OOB result); `getPixel` reads the clear colour at every pixel (`clear()` bypasses `index()`).
 
 ### `tests/test_triangle_rasterizer.cpp` (change)
 **Cases:** depth-aware fill writes both color and depth for interior pixels; a nearer triangle overwrites a farther one at a shared pixel; a farther one does not; degenerate (zero-area) draws nothing.
@@ -121,4 +152,6 @@ The head is a closed mesh with **consistent winding**, so a triangle facing away
 - **Pixel sample point** (corner vs center) and **`cross` spelling** on `Vec3` verts — decide when writing `drawTriangle`.
 - **`Matrix4x4`** — introduced in Lesson 5 (camera); projection rebuilt on it then. Do **not** build it this lesson.
 - **Deferred `Application` cleanups** (Lesson 1–2): dead `drawPoint()`/`drawTestPattern()`, `std::array<Vec2i,2>` → `Line`, stale bench `cout` labels — fold in opportunistically, non-blocking.
-- **Window** flips 800×600 → 800×800 as part of Lesson 3 setup.
+- ~~**Window** flips 800×600 → 800×800 as part of Lesson 3 setup.~~ **Done.**
+- **Right-edge off-by-one in `orthographicProjection`** — `point_position.x == +1` maps to exactly `screen_width`, but the last valid column is `screen_width - 1`, so an extreme-edge vertex is silently dropped by `setPixel`'s bounds check. Same on y. Undecided: accept it (TinyRenderer does) vs. scale by `width - 1` vs. clamp. Revisit if the wireframe shows a missing edge.
+- **Assets are gitignored** — `models/obj/` is excluded (`*.obj`, `*.tga`, `*.png`, bare `obj`). A fresh clone has no model and `loadObj` will throw. `README.md` needs a line on where to obtain the assets before this is committed.
