@@ -22,5 +22,6 @@ namespace tinymath
     }
 
     using Vec2i = Vec2<int>;
+    using Vec2f = Vec2<float>;
 
 } // end of tinymath name space

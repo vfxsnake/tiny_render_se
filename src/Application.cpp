@@ -14,6 +14,8 @@
 #include "rasterizer/LineDrawer.h"
 #include "rasterizer/TriangleRasterizer.h"
 #include "utils/Timer.h"
+#include "io/ObjLoader.h"
+#include "math/Projection.h"
 
 
 
@@ -44,7 +46,9 @@ void Application::run()
 
     // algorithms test:
     // testDrawLineAlgorithms();
-    testDrawTriangleAlgorithms();
+    // testDrawTriangleAlgorithms();
+    // testDrawWireFrame();
+    testDrawMesh();
 
     mainLoop();
 }
@@ -224,3 +228,78 @@ void Application::testDrawTriangleAlgorithms()
     timer.stop();
     std::cout << "drawTriangle barycentric processing time: " << timer.elapsedMs() << "ms.\n";
 }   
+
+
+void Application::testDrawWireFrame()
+{
+    framebuffer_.clear(Color{0,0,0,0});
+    const io::Mesh geometry_mesh = io::loadObj("models/diablo3_pose.obj");
+    Color red{255, 0,0, 255};
+    Color green{0, 255, 0, 255};
+    Color blue{0, 0, 255, 255};
+
+    for (const std::array<int, 3>& face_indices : geometry_mesh.faceIndices)
+    {
+        tinymath::Vec3f a = geometry_mesh.vertices[face_indices[0]];
+        tinymath::Vec3f b = geometry_mesh.vertices[face_indices[1]];
+        tinymath::Vec3f c = geometry_mesh.vertices[face_indices[2]];
+
+        a = tinymath::orthographicProjection(a, WIDTH, HEIGHT, 1.0f);
+        b = tinymath::orthographicProjection(b, WIDTH, HEIGHT, 1.0f);
+        c = tinymath::orthographicProjection(c, WIDTH, HEIGHT, 1.0f);
+   
+        LineDrawer::drawLine(
+            {static_cast<int>(a.x), static_cast<int>(a.y)}, 
+            {static_cast<int>(b.x), static_cast<int>(b.y)}, 
+            red, 
+            framebuffer_
+        );
+        LineDrawer::drawLine(
+            {static_cast<int>(b.x), static_cast<int>(b.y)}, 
+            {static_cast<int>(c.x), static_cast<int>(c.y)}, 
+            green, 
+            framebuffer_
+        );
+        LineDrawer::drawLine(
+            {static_cast<int>(c.x), static_cast<int>(c.y)}, 
+            {static_cast<int>(a.x), static_cast<int>(a.y)}, 
+            blue, 
+            framebuffer_
+        );       
+    }
+}
+
+void Application::testDrawMesh()
+{
+    framebuffer_.clear(Color{0,0,0,0});
+    const io::Mesh geometry_mesh = io::loadObj("models/diablo3_pose.obj");
+
+    // color randomization setup
+    std::mt19937 gen(753);
+    std::uniform_int_distribution<int> dist{0, 255};
+
+    for (const std::array<int, 3>& face_indices : geometry_mesh.faceIndices)
+    {
+        tinymath::Vec3f a = geometry_mesh.vertices[face_indices[0]];
+        tinymath::Vec3f b = geometry_mesh.vertices[face_indices[1]];
+        tinymath::Vec3f c = geometry_mesh.vertices[face_indices[2]];
+
+        a = tinymath::orthographicProjection(a, WIDTH, HEIGHT, 1.0f);
+        b = tinymath::orthographicProjection(b, WIDTH, HEIGHT, 1.0f);
+        c = tinymath::orthographicProjection(c, WIDTH, HEIGHT, 1.0f);
+        
+        Triangle triangle{
+            {static_cast<int>(a.x), static_cast<int>(a.y)}, 
+            {static_cast<int>(b.x), static_cast<int>(b.y)}, 
+            {static_cast<int>(c.x), static_cast<int>(c.y)}
+        };
+        Color rand_color{
+            static_cast<uint8_t>(dist(gen)),
+            static_cast<uint8_t>(dist(gen)),
+            static_cast<uint8_t>(dist(gen)),
+            255 
+        };
+
+        TriangleRasterizer::drawTriangle(triangle, rand_color, framebuffer_);
+    }
+}
