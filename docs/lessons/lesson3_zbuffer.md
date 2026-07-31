@@ -6,7 +6,7 @@
 Render the OBJ head as a solid, per-pixel-occluded surface — near triangles hide far ones so no back-side geometry bleeds through the front.
 
 ## Exit condition
-The window shows the head model filled with triangles (flat / per-triangle color for now), depth-correct: the nose sits in front of the cheeks, no far-side face punches through. Plus a depth-test unit case and whatever property/differential tests the depth-aware fill needs. **Status: PLANNED.**
+The window shows the head model filled with triangles (flat / per-triangle color for now), depth-correct: the nose sits in front of the cheeks, no far-side face punches through. Plus a depth-test unit case and whatever property/differential tests the depth-aware fill needs. **Status: IN PROGRESS** — steps 1–3 complete (namespace, `Vec3<T>`, OBJ loader, projection, y-flip); the wireframe checkpoint passed and the mesh renders solid with the depth-order artifacts this lesson removes. Step 4 (triangle layer) is designed but unwritten.
 
 ## Concepts
 
@@ -21,6 +21,15 @@ Each vertex carries its own depth (`a.z`, `b.z`, `c.z`). A pixel inside the tria
 Dividing by the total (which *is* the whole triangle's signed area) forces `α+β+γ = 1` automatically — no separate normalization. Exact at the corners: at vertex A the opposite sub-triangle is the whole area → `α=1, β=γ=0` → `z = a.z`; linear in between, which is what depth needs.
 - **Consequence — division re-enters the inner loop.** Lesson 2's shipped `drawTriangle` was divisionless (pure sign test). Depth needs the actual weights → a divide, but only for pixels that pass the sign test.
 - **Consequence — depth is float.** `a.z…` come from projection as fractional values; the interpolation is fractional. This is why our `Framebuffer` stores `float depth_` rather than the lesson's quantized `unsigned char [0,255]` — we keep full precision.
+- **Consequence — the coverage test collapses to one branch.** The *raw* weights' signs follow the winding: CCW → all positive inside, CW → all negative. That is why Lesson 2 needed the winding-agnostic `(all positive) || (all negative)` — two branches, six comparisons. The denominator carries that same winding sign, so **dividing cancels it** and both windings normalise onto the same convention:
+
+  | Winding | raw weights | signed area | α, β, γ |
+  |---|---|---|---|
+  | CCW | + + + | + | + + + |
+  | CW | − − − | − | + + + |
+
+  Inside is therefore always `α >= 0 && β >= 0 && γ >= 0`. The second case did not get handled — normalisation moved both cases onto one sign convention. And the division is not a cost paid for this: α/β/γ are needed for the depth interpolation regardless.
+- **Consequence — each weight belongs to the vertex *opposite* its edge.** `cross(c-b, point-b)` → α → pairs with `a.z`; `cross(a-c, point-c)` → β → `b.z`; `cross(b-a, point-a)` → γ → `c.z`. Permuting that mapping still sums to 1 and still covers the right pixels, but tilts the depth gradient wrongly across the face — it looks *almost* right, which is the worst failure mode. Verified numerically (Session 27): those weights reconstruct the sample point exactly via `α·a + β·b + γ·c`.
 
 ### 3. The depth test — convention FINALIZED
 Two halves that must agree, plus the invariant that the clear value means "nothing here yet / infinitely far" so the first real fragment at any pixel always wins.
@@ -52,13 +61,39 @@ The head is a closed mesh with **consistent winding**, so a triangle facing away
 - **Diagnosis if it goes wrong:** whole model gone / inside-out → wrong global sign (flip the comparison); a localized hole or two → a flipped face in the mesh data, not our code.
 - **Naive-to-optimised order:** z-buffer first (correct image), culling second (same image, faster).
 
+### 6. Barycentric coordinates are a 3D concept; the rasterizer needs the xy special case
+*(Session 27 — this is what decided where the operations live.)*
+
+True barycentric coordinates **parametrize the surface in 3D**: for a point on the triangle, `P = α·a + β·b + γ·c` in full `Vec3f`, and the coordinates hand back the whole xyz position. That concept is projection-free.
+
+What the rasterizer computes is *not* that. It computes the coordinates with respect to the **xy-projected** triangle, from an integer pixel `(x, y)`. The xy plane is privileged for exactly one reason — it is where the screen is. Nothing geometric prefers it.
+
+**The rasterizer cannot use the 3D version, and the reason is non-negotiable.** The inner loop holds only an integer `(x, y)`. Building a 3D input point requires z, and z is what the weights are being computed to produce. Circular. The cheap xy version exists precisely to *break* that circularity — which is what makes it a rasterization primitive rather than a geometry one.
+
+**Why the xy weights are nonetheless exact, not an approximation.** An **affine map preserves barycentric coordinates**. `orthographicProjection` is affine — multiply-and-add only, no division by a coordinate (Session 25). So a point's coordinates with respect to the projected 2D triangle are *identical* to its coordinates with respect to the 3D triangle. Same numbers.
+
+**The weights are a 2D addressing question; z is merely the first attribute fed to them.** "Which convex combination of the screen vertices is this pixel?" has no z in it. `z = α·a.z + β·b.z + γ·c.z` then applies those weights to per-vertex data. The proof they are separate concerns: the *same* weights later interpolate UVs, colours and normals — impossible if they depended on z.
+
+**Why three z values suffice:** the triangle is planar, so z is a linear function of `(x, y)` and three non-collinear points determine it exactly. At a corner the weights collapse to a single `1` and return that vertex's own z unchanged; in between they sweep smoothly. That gradient is what a per-triangle sort cannot express, and it is why two interpenetrating triangles can each own part of a shared region.
+
+> **Flag for Lesson 5 — perspective-correct interpolation.** Perspective projection is **not** affine (it divides by z), so barycentrics are *not* preserved and screen-linear interpolation of z becomes **wrong**: under perspective `1/z` interpolates linearly, not `z`. Real pipelines interpolate `1/w` and `attribute/w` and divide at the end. Everything in this lesson is correct *because* the projection is orthographic. When the camera lesson swaps in a perspective matrix, the attribute interpolation needs revisiting — the coverage test does not.
+
+**Consequence for architecture:** these operations assume already-projected data, so they do not belong in a space-agnostic geometry namespace. They live in `screen::`. A geometry-side `barycentric` returning a full `Vec3f` position is a legitimate future function — it simply has no caller today and is not written.
+
 ## Design decisions
 | Decision | Choice | Reason |
 |----------|--------|--------|
 | Screen-space vertex | **`Vec3f`** (not `Vec2i` + separate z) | `Vec3` is needed anyway for world vertices; the integer-edge optimization is already dead (barycentric forces float division regardless). Float geometry, integer pixel grid. |
-| **`Triangle` shape** | **Option A** — change the struct in place: `struct Triangle { Vec3f a, b, c; }` (not a template, not a second type) | `.x/.y` feed 2D ops (bbox, edge functions, sort); `.z` feeds depth. One type, no premature abstraction. |
-| `sortedByY()` | return shifts `array<Vec2i,3>` → **`array<Vec3f,3>`** | Sorts on `.y`; z rides along — exactly what post-sort depth interpolation wants. |
-| Lesson-2 2D path | `test_triangle_rasterizer.cpp` + `drawTriangleScanline` migrate to `Vec3f` (z=0 for pure-2D cases) | Decide at implementation whether the scanline rung/tests are **retired** now that `drawTriangle` ships — the scanline path has no future role. |
+| **Triangle types** *(Session 27 — supersedes "Option A")* | **two structs split by coordinate space**: `RasterTriangle { Vec3f a, b, c; }` (screen space, data-only) and `Triangle2D { Vec2i a, b, c; }` (frozen Lesson-2 artifact, keeps its methods) | The name encodes the invariant that the coordinates are **projected**, so the model-space/screen-space ambiguity cannot recur — the same win a `RasterizePrimitive` class buys, for the price of a rename. Keeping `Triangle2D` untouched means `drawTriangleScanline` needs a signature edit only. |
+| **Rejected: `Triangle<T>` template** | one concrete `Vec3f` type | `Vec3i` was already disproved in Session 26 — projected z ∈ `[0,1]` truncates to 0 or 1, i.e. two depth levels for the whole model — so the second instantiation cannot exist. It would also force `drawTriangle` to become a template (killing the `.h`/`.cpp` split) or take `Triangle<float>` concretely (buying nothing). |
+| **Operations** | **free functions, not methods** | Matches the math layer, where `dot`/`cross`/`normalize` are free functions and there is no `Vec3Utils.h`. Methods on `Triangle` were the outlier. |
+| **`screen::` namespace** | holds `twiceSignedArea`, `boundingBox`, `barycentric` — all assume **already-projected** coordinates (x/y are pixels, z is depth) | Rejected `polygon::`: the operations are not space-agnostic geometry (concept 6), and it ended with zero members. `raster::` overclaims — the whole subsystem is rasterization. `projected::` reads badly as an adjective. |
+| `sortedByY()` | **stays a `Triangle2D` method**; no `RasterTriangle` equivalent | Its only caller is `drawTriangleScanline`, which stays on `Triangle2D`. A `RasterTriangle` version would have no caller. |
+| Lesson-2 2D path | **`drawTriangleScanline` keeps `Triangle2D`** — signature edit only; its tests keep their `Vec2i` literals | Avoids ~8 mechanical cast sites, and its `cross(...) == 0` guard still returns `int`. Cost: `testDrawTriangleAlgorithms()` must build both types from the same source data to compare the two algorithms. |
+| **`twiceSignedArea` naming** | not `area`, not `signedArea`, not `doubleSignedArea` | `area` conventionally means the *absolute* value, so a function returning a negative surprises people — "signed" carries real information. `double` reads as a precision claim on a function returning `float`. The 2× is the property no name captures for free, so it must be in the doc comment. |
+| `boundingBox` return | `std::pair<Vec2f, Vec2f>` (min corner, max corner), **unrounded and unclamped** | Pixel-grid semantics are the rasterizer's business. `drawTriangle` floors the min, ceils the max, and clamps to `getWidth()`/`getHeight()` in one step — clamping needs framebuffer dimensions, which a geometry function should not know. A 3D bbox was considered and dropped: `.z` has no caller. |
+| `barycentric` signature | takes `twice_signed_area` as a **third parameter** | The area is a per-triangle constant; computing it inside would recompute it per pixel and force a divide-by-zero guard into the hot loop. `drawTriangle` already computes and tests it before the loop starts, so threading it in costs one parameter and gives the function a clean precondition. |
+| Placement of the three | **declared in `TriangleRasterizer.h`, defined in `TriangleRasterizer.cpp`** | Same translation unit as their only caller, so `barycentric` can inline into the pixel loop without LTO; header declarations keep them reachable from `test_triangle_rasterizer`. Header-only + `inline` was the earlier plan — it solved a CMake problem (adding a source file to two target lists) that does not exist here, since `TriangleRasterizer.cpp` is already in both. |
 | `Vec3<T>` API | member `+`, `-`, `*scalar`; **`cross`/`dot` as free functions**; Hadamard `*` **deferred** to shading | Consistent with `Vec2` (free `cross`); no redundant member/free duplication; component-wise multiply has no consumer until Lesson 8–9. Left-scalar `scalar*vec` deferred until needed. |
 | `Vec2` retrofit | add ops to `Vec2` opportunistically to match `Vec3` as lessons touch them | Keep the two types from drifting into different mental models. |
 | **Namespace** | **`tinymath`** (lowercase); adopt in **one dedicated move-commit BEFORE Lesson 3 code** | The deferred "math namespace" move. Blast radius: `Vec2.h`, `test_vec2.cpp`, `LineDrawer.{h,cpp}`, `TriangleRasterizer.{h,cpp}`, `Triangle.h`. `math` isn't actually taken by std — `tinymath` chosen for clarity. |
@@ -68,15 +103,15 @@ The head is a closed mesh with **consistent winding**, so a triangle facing away
 | **Y-axis flip placement** | **inside `Framebuffer::index()`** — `(height_ - 1 - y) * width_ + x` — *not* inside the projection | Model y grows up, screen rows grow down; one of the two must reverse it. `index()` is a single choke point shared by `setPixel`/`getPixel`/`setDepth`/`getDepth`, so colour and depth flip together by construction and the whole rasterizer thinks y-up. `getData()` stays raw top-left for the Vulkan upload, so the display pipeline was untouched. Cost: Lesson 1–2 positional tests had to be re-anchored (see Modules). |
 | Depth test placement | inside `drawTriangle`'s inner loop: `z > getDepth(px,py)` → `setDepth` + `setPixel` | The rasterizer owns the read-modify-write of the `Framebuffer`'s depth buffer. |
 | Pixel sample point | corner (`px,py`) vs center (`px+0.5,py+0.5`) — **decide when writing `drawTriangle`** | Center is more correct for coverage/tie-breaking; corner is simpler and matches Lesson 2. |
-| `cross` spelling on `Vec3` verts | pull a `Vec2` from `.x/.y`, or add a 2D-cross helper reading `.x/.y` — **decide when writing `drawTriangle`** | Minor ergonomics; the 2D signed area only uses x,y. |
+| `cross` spelling on `Vec3` verts | **RESOLVED** — build a `Vec2f` from `.x/.y` and reuse the existing templated `cross(Vec2,Vec2)`, which returns a scalar. Hidden inside `screen::twiceSignedArea` and `screen::barycentric` | No new math function needed. `cross(Vec3f,Vec3f)` returns a `Vec3f`, so `== 0` would not even compile. |
 
 ## Implementation order (dependency-ordered)
 1. **`tinymath` namespace move-commit** — wrap `Vec2` + all users. Cleanup on existing code first, its own commit.
 2. **`Vec3<T>`** — storage + member `+`/`-`/`*scalar`, free `cross`/`dot`. `tests/test_vec3.cpp`.
 3. **Projection** (free fn in `tinymath`) + **`io/ObjLoader`** — both produce/consume `Vec3f`.
-4. **`Triangle` → `Vec3f`** (Option A); migrate/retire the scanline path + its tests.
-5. **`drawTriangle` rewrite** — float edge functions + sign reject → weights + z-interp + depth test in the inner loop.
-6. **Square window (800×800)** + wire the head into the producer; visual check; tests. Add real back-face culling last (same image, faster) once the head renders correctly.
+4. **Triangle layer** *(revised Session 27)* — `Triangle.h`: rename `Triangle` → `RasterTriangle`, keep `Triangle2D`, no namespace and no functions in the file. `TriangleRasterizer.h`: add `namespace screen` with the three declarations + contract doc comments; `drawTriangleScanline` takes `Triangle2D`, `drawTriangle` takes `RasterTriangle`. `TriangleRasterizer.cpp`: write the three bodies.
+5. **`drawTriangle` rewrite** — `twiceSignedArea` once above the loop (zero → early return), bbox floored/ceiled/clamped to the framebuffer, then per pixel: `barycentric` → `α,β,γ >= 0` → `z = α·a.z+β·b.z+γ·c.z` → `z > getDepth` → `setDepth` + `setPixel`.
+6. **Square window (800×800)** + wire the head into the producer; visual check against the "before" picture; tests. Add real back-face culling last (same image, faster) once the head renders correctly.
 
 ## Modules
 
@@ -108,15 +143,43 @@ The head is a closed mesh with **consistent winding**, so a triangle facing away
 - `Mesh loadObj(std::string const& path)` — `Mesh { std::vector<Vec3f> vertices; std::vector<std::array<int,3>> faces; }`. Parse `v` lines and the first (position) index of each `f` group; skip `vt`/`vn`.
 
 ### `src/rasterizer/primitives/Triangle.h` (change)
+**Responsibility:** the triangle value types — **structs only. No methods on `RasterTriangle`, no namespace, no free functions in this file.**
 **API:**
-- `struct Triangle { Vec3f a, b, c; };`
-- `std::array<Vec3f,3> sortedByY() const;` (z rides along)
-- `getXBounds()` / `getYBounds()` now over `Vec3f.x/.y`
+- `struct RasterTriangle { tinymath::Vec3f a, b, c; };` — screen space: `.x`/`.y` are pixel coordinates, `.z` is depth in `[0,1]`. Renamed from `Triangle` so the *type* records that the coordinates are already projected.
+- `struct Triangle2D { tinymath::Vec2i a, b, c; };` — frozen Lesson-2 artifact, deprecated, retains `sortedByY()` / `getXBounds()` / `getYBounds()`. Reached only by `drawTriangleScanline`.
+
+**No geometry-side triangle type exists, and none is needed.** `io::Mesh` (`vector<Vec3f> vertices` + `vector<array<int,3>> faceIndices`) **is** the model-space representation, and it is the *indexed* one — a standalone geometry triangle would denormalize it and copy every vertex ~6× on a closed mesh. Lesson 5's face normal pulls three `Vec3f` out of the mesh by index, crosses two edges and normalizes: a free function over three vertices, no struct.
 
 ### `src/rasterizer/TriangleRasterizer.h/.cpp` (change)
-**API:**
-- `void drawTriangle(Triangle t, Color color, Framebuffer& frame_buffer)` — bbox → per-pixel sign reject → weights + `z = α·a.z+β·b.z+γ·c.z` → depth test → `setDepth`/`setPixel`.
-- `drawTriangleScanline` — migrate to `Vec3f` or retire (decide at implementation).
+`namespace screen` is **declared in this header and defined in this `.cpp`** — see the placement row in Design decisions. The namespace/filename mismatch is deliberate and temporary; it moves into `RasterizePrimitive`'s file when that is extracted.
+
+**`namespace screen` API** — all three assume already-projected coordinates:
+
+- `float twiceSignedArea(const RasterTriangle& triangle)` — `cross(b-a, c-a)` on the **xy projection only, z ignored**. Three facts the doc comment must state, because none is visible from the signature:
+  1. **xy-only.** With `Vec3f` members and (formerly) a 3D neighbour, a reader will otherwise assume the 3D parallelogram area — a different number, and wrong as the barycentric denominator.
+  2. **Signed.** The sign is the winding, which is what back-face culling reads.
+  3. **Twice** the geometric area — i.e. the *parallelogram* area, since the triangle is half of it. The factor is load-bearing: the edge weights carry the same factor, which is the only reason `α+β+γ = 1`. "Fixing" it with a `/2` silently doubles all three weights.
+
+  Verified numerically (Session 27): the choice of shared vertex is irrelevant — `cross(b-a,c-a)`, `cross(c-b,a-b)`, `cross(a-c,b-c)` all agree. **Operand order flips the sign.** And `w0+w1+w2` equals `cross(b-a,c-a)` exactly, confirming it already matches the existing weight convention.
+
+  *Why not `|cross₃|`:* a magnitude has no sign, so it can never drive culling; and an edge-on triangle has collinear screen x/y but differing `.z`, so `|cross₃|` is non-zero while screen coverage is zero — the degeneracy guard would pass and step 5 would divide by zero.
+
+- `std::pair<tinymath::Vec2f, tinymath::Vec2f> boundingBox(const RasterTriangle& triangle)` — min corner, max corner. **Unrounded, unclamped**; the caller owns pixel-grid semantics.
+
+- `tinymath::Vec3f barycentric(const RasterTriangle& triangle, tinymath::Vec2f point, float twice_signed_area)` — returns (α, β, γ) packed so **`.x` = α = vertex `a`'s weight**. Doc comment must state the packing *and* the precondition: `twice_signed_area` must be non-zero and must come from *this* triangle. Nothing in the type system enforces either; a stale area yields weights that are silently wrong rather than obviously broken.
+
+**`drawTriangle(const RasterTriangle&, Color, Framebuffer&)`** — `twiceSignedArea` once (zero → return), bbox floored/ceiled/**clamped to `getWidth()`/`getHeight()`**, then per pixel: `barycentric` → single-branch `α,β,γ >= 0` → `z = α·a.z+β·b.z+γ·c.z` → `z > getDepth` → `setDepth` + `setPixel`. The clamp is a real optimisation and a benchmarkable rung: today the loop walks the full bbox and lets `setPixel` silently reject out-of-range writes, so a mostly-off-screen triangle burns an entire inner loop doing nothing.
+
+**Float truncation trap:** `static_cast<int>` rounds **toward zero** — `floor` for positive coordinates but `ceil` for negative ones. Faces projecting off-screen left or below therefore need explicit `floor`/`ceil`, not a bare cast.
+
+**`drawTriangleScanline(Triangle2D, Color, Framebuffer&)`** — unchanged apart from the parameter type. No depth support, no future role; kept as the Lesson-2 benchmark rung.
+
+### `RasterizePrimitive` — designed, deliberately deferred
+Proposed in Session 27: an immutable class holding projected vertices plus the derived setup values, owning these operations. **This is what real hardware does** — GPUs have a *triangle setup* stage that emits exactly this (edge coefficients, reciprocal area, screen bbox) for the fragment stage to consume, and it is the natural shape for the Phase 2 compute port.
+
+**Deferred because the member list is not yet known.** Today it is area + bbox. Lesson 5 adds `1/w` once the projection stops being affine; textures add UV references; Gouraud adds per-vertex normals or colours. Extracting the class *after* `drawTriangle` works reads that list off working code; designing it now guesses it.
+
+**Constraint for when it is built: make it immutable** — const members, computed once in the constructor, no setters. Cached derived state plus mutable vertices is a staleness bug (change a vertex, the stored area is silently stale) that the current explicit-precondition design cannot have.
 
 ### `src/rasterizer/Framebuffer.h/.cpp` (change) — y-axis origin flip
 **Decision:** the framebuffer origin moves to **bottom-left**. `index()` becomes `(height_ - 1 - y) * width_ + x`.
@@ -145,11 +208,24 @@ The head is a closed mesh with **consistent winding**, so a triangle facing away
 **Added for the flip (done):** `getPixel` agrees with raw memory layout (the *anchor* — the only case that can catch an off-by-one inside `index()`, since every other test cancels the error across write and read); `getPixel` round-trips `setPixel` at asymmetric rows with distinct colours; `getPixel` out of bounds returns zero (buffer pre-cleared to non-zero so a stray in-bounds read can't masquerade as the OOB result); `getPixel` reads the clear colour at every pixel (`clear()` bypasses `index()`).
 
 ### `tests/test_triangle_rasterizer.cpp` (change)
-**Cases:** depth-aware fill writes both color and depth for interior pixels; a nearer triangle overwrites a farther one at a shared pixel; a farther one does not; degenerate (zero-area) draws nothing.
+**Cases — `drawTriangle`:** depth-aware fill writes both color and depth for interior pixels; a nearer triangle overwrites a farther one at a shared pixel; a farther one does not; degenerate (zero-area) draws nothing.
+
+**Cases — `screen::` (reachable because they are declared in the header):**
+- `twiceSignedArea` — known value on an asymmetric triangle; **sign flips when two vertices are swapped** (the culling contract); zero for collinear vertices; unchanged when `.z` varies (proves the xy-only claim).
+- `barycentric` — at each vertex returns a single `1` and two `0`s (the corner check that catches a permuted α/β/γ mapping); at the centroid returns ⅓,⅓,⅓; weights sum to 1; **all three non-negative for an interior point under *both* windings** — the case that proves the single-branch coverage test.
+- `boundingBox` — corners for a triangle with negative coordinates, since that is where `static_cast<int>`'s round-toward-zero differs from `floor`.
+
+> Per the Session-24/25 test-design lessons: pick **asymmetric** coordinates with every term non-zero. A symmetric case can be geometrically incapable of failing — it is what let the `Vec3::cross` typo and the y-flip bug both survive their first test.
 
 ## Open questions / carry-forward
-- **Scanline rung fate** — retire vs. migrate to `Vec3f`; decide at implementation (it has no shipping role).
-- **Pixel sample point** (corner vs center) and **`cross` spelling** on `Vec3` verts — decide when writing `drawTriangle`.
+- ~~**Scanline rung fate**~~ — **resolved**: kept, on `Triangle2D`, signature edit only.
+- ~~**`cross` spelling** on `Vec3` verts~~ — **resolved**: `Vec2f` round-trip inside `screen::` (see Design decisions).
+- **Pixel sample point** (corner vs center) — still open; decide when writing `drawTriangle`.
+- **`Triangle2D`'s fate.** Kept "for posterity" with a deprecation comment, reachable only by `drawTriangleScanline`. Unresolved: git history is already the museum, and a deprecated struct in a live header tends to read as an option rather than a fossil.
+- **`screen::` + `RasterTriangle` is mildly redundant** — either qualifier alone would carry the space. Explicitly agreed not to reopen; keep both or drop one.
+- **`Vec2` still has only `operator-`** (no `+`, no `*`) — the "retrofit opportunistically" decision never happened. The `Vec3f`→`Vec2f` `.z`-dropping extraction is written longhand by component ~5 times across `twiceSignedArea` and `barycentric`; a `tinymath::xy(Vec3<T>) -> Vec2<T>` helper was suggested and left to judgement after writing the repetition once. A transposed `.x`/`.y` is the thing that hides there.
+- **Near-degenerate triangles:** `twice_signed_area` is float where Lesson 2's was exact `int`. A nearly-degenerate triangle gives a tiny denominator and enormous weights. Note it; no epsilon until it misbehaves.
+- **No Release build config exists** — `CMakeLists.txt` sets no `CMAKE_BUILD_TYPE`, no `-O` flag and no LTO, so nothing inlines today in any arrangement, and every `Timer` benchmark so far has measured unoptimized code. Relative comparisons between rungs remain valid; absolute numbers do not. Worth fixing before the next benchmark is taken seriously.
 - **`Matrix4x4`** — introduced in Lesson 5 (camera); projection rebuilt on it then. Do **not** build it this lesson.
 - **Deferred `Application` cleanups** (Lesson 1–2): dead `drawPoint()`/`drawTestPattern()`, `std::array<Vec2i,2>` → `Line`, stale bench `cout` labels — fold in opportunistically, non-blocking.
 - ~~**Window** flips 800×600 → 800×800 as part of Lesson 3 setup.~~ **Done.**

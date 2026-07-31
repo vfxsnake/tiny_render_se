@@ -212,7 +212,7 @@ void Application::testDrawTriangleAlgorithms()
     timer.start();
     for (auto point_array : points_array_list)
     {
-        Triangle triangle{point_array[0], point_array[1], point_array[2]};
+        Triangle2D triangle{point_array[0], point_array[1], point_array[2]};
         TriangleRasterizer::drawTriangleScanline(triangle, red, framebuffer_);
     }
     timer.stop();
@@ -221,8 +221,8 @@ void Application::testDrawTriangleAlgorithms()
     timer.start();
     for (auto point_array : points_array_list)
     {
-        Triangle triangle{point_array[0], point_array[1], point_array[2]};
-        TriangleRasterizer::drawTriangle(triangle, green, framebuffer_);
+        Triangle2D triangle{point_array[0], point_array[1], point_array[2]};
+        TriangleRasterizer::drawTriangle2D(triangle, green, framebuffer_);
 
     }
     timer.stop();
@@ -277,29 +277,54 @@ void Application::testDrawMesh()
     // color randomization setup
     std::mt19937 gen(753);
     std::uniform_int_distribution<int> dist{0, 255};
-
+    std::vector<std::pair<Triangle, Color>> triangle_and_color_list;
     for (const std::array<int, 3>& face_indices : geometry_mesh.faceIndices)
     {
         tinymath::Vec3f a = geometry_mesh.vertices[face_indices[0]];
         tinymath::Vec3f b = geometry_mesh.vertices[face_indices[1]];
         tinymath::Vec3f c = geometry_mesh.vertices[face_indices[2]];
 
-        a = tinymath::orthographicProjection(a, WIDTH, HEIGHT, 1.0f);
-        b = tinymath::orthographicProjection(b, WIDTH, HEIGHT, 1.0f);
-        c = tinymath::orthographicProjection(c, WIDTH, HEIGHT, 1.0f);
+        tinymath::Vec3f projected_a = tinymath::orthographicProjection(a, WIDTH, HEIGHT, 1.0f);
+        tinymath::Vec3f projected_b = tinymath::orthographicProjection(b, WIDTH, HEIGHT, 1.0f);
+        tinymath::Vec3f projected_c = tinymath::orthographicProjection(c, WIDTH, HEIGHT, 1.0f);
         
         Triangle triangle{
-            {static_cast<int>(a.x), static_cast<int>(a.y)}, 
-            {static_cast<int>(b.x), static_cast<int>(b.y)}, 
-            {static_cast<int>(c.x), static_cast<int>(c.y)}
+            {{projected_a.x, projected_a.y}, projected_a.z},
+            {{projected_b.x, projected_b.y}, projected_b.z},
+            {{projected_c.x, projected_c.y}, projected_c.z},
         };
+
+        
         Color rand_color{
             static_cast<uint8_t>(dist(gen)),
             static_cast<uint8_t>(dist(gen)),
             static_cast<uint8_t>(dist(gen)),
             255 
         };
-
-        TriangleRasterizer::drawTriangle(triangle, rand_color, framebuffer_);
+        
+        triangle_and_color_list.push_back({triangle, rand_color});
     }
+
+    Timer timer;
+    timer.start();
+    int triangle_count = 0;
+    for (auto& [triangle, color] : triangle_and_color_list)
+    {
+        TriangleRasterizer::drawTriangle(triangle, color, framebuffer_, false);
+        triangle_count++;
+    }
+    timer.stop();
+    std::cout << "drawTriangle barycentric no back face culling processing time: " << timer.elapsedMs() << "ms.\n";
+    std::cout << "total number of triangles drown : " << triangle_count << "\n";
+
+    timer.start();
+    triangle_count = 0;
+    for (auto& [triangle, color] : triangle_and_color_list)
+    {
+        TriangleRasterizer::drawTriangle(triangle, color, framebuffer_);
+        triangle_count++;
+    }
+    timer.stop();
+    std::cout << "drawTriangle barycentric with back face culling processing time: " << timer.elapsedMs() << "ms.\n";
+    std::cout << "total number of triangles drown : " << triangle_count << "\n";
 }

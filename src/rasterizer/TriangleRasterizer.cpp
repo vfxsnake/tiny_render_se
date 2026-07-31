@@ -2,13 +2,14 @@
 
 #include <array>
 #include <utility>
+#include <algorithm>
 
 #include "Framebuffer.h"
 
 
 
 void TriangleRasterizer::drawTriangleScanline(
-    Triangle triangle,
+    const Triangle2D& triangle,
     Color color,
     Framebuffer& frame_buffer
 )
@@ -100,8 +101,8 @@ void TriangleRasterizer::drawTriangleScanline(
 }
 
 
-void TriangleRasterizer::drawTriangle(
-    Triangle triangle,
+void TriangleRasterizer::drawTriangle2D(
+    const Triangle2D& triangle,
     Color color,
     Framebuffer& frame_buffer
 )
@@ -132,4 +133,110 @@ void TriangleRasterizer::drawTriangle(
             }
         }
     }
+}
+
+
+void TriangleRasterizer::drawTriangle(const Triangle& triangle, Color color, Framebuffer& frame_buffer, bool cull_back_faces)
+{
+    float parallelogram_area = screen::twiceSignedArea(triangle);
+    
+    // prevents degenerated faces
+    if (parallelogram_area = 0.0f)
+    {
+        return;
+    }
+
+    if (cull_back_faces && parallelogram_area < 0.0f)
+    {
+        return;
+    }
+
+
+    screen::BBox bbox = screen::boundingBox(triangle);
+    
+    // clamping bbox to screen window boundaries. 
+    int x_min = static_cast<int>(std::max(0.0f, bbox.x_min));
+    int x_max = static_cast<int>(std::min(bbox.x_max, static_cast<float>(frame_buffer.getWidth() - 1)));
+    int y_min = static_cast<int>(std::max(0.0f, bbox.y_min));
+    int y_max = static_cast<int>(std::min(bbox.y_max, static_cast<float>(frame_buffer.getHeight() - 1)));
+    
+
+    for (int y = y_min; y <= y_max; y++)
+    {
+        for (int x = x_min; x <= x_max; x++)
+        {
+            tinymath::Vec2f current_position(static_cast<float>(x), static_cast<float>(y));
+            screen::BarycentricWeights weights = screen::barycentricWeights(
+                triangle, 
+                current_position, 
+                parallelogram_area
+            );
+            
+            if (weights.alpha >= 0 && weights.beta >= 0 && weights.gamma >= 0)
+            {
+                // depth test
+                float depth = triangle.a.depth * weights.alpha + 
+                              triangle.b.depth * weights.beta + 
+                              triangle.c.depth * weights.gamma;
+
+                if (frame_buffer.getDepth(x, y) < depth)
+                {
+                    frame_buffer.setPixel(x, y, color);
+                    frame_buffer.setDepth(x, y, depth);
+                }
+            }
+        }
+    }
+}
+
+
+float screen::twiceSignedArea(const Triangle& triangle)
+{
+    tinymath::Vec2f segment_a_b = triangle.b.coordinates - triangle.a.coordinates;
+    tinymath::Vec2f segment_a_c = triangle.c.coordinates - triangle.a.coordinates;
+
+    return tinymath::cross(segment_a_b, segment_a_c);
+}
+
+
+screen::BBox screen::boundingBox(const Triangle& triangle)
+{
+    screen::BBox b_box;
+
+    b_box.x_min = std::min({triangle.a.coordinates.x, triangle.b.coordinates.x, triangle.c.coordinates.x});
+    b_box.x_max = std::max({triangle.a.coordinates.x, triangle.b.coordinates.x, triangle.c.coordinates.x});
+    b_box.y_min = std::min({triangle.a.coordinates.y, triangle.b.coordinates.y, triangle.c.coordinates.y});
+    b_box.y_max = std::max({triangle.a.coordinates.y, triangle.b.coordinates.y, triangle.c.coordinates.y});
+
+    return b_box;
+}
+
+
+screen::BarycentricWeights screen::barycentricWeights(
+    const Triangle& triangle, 
+    tinymath::Vec2f raster_point, 
+    float twice_signed_area
+)
+{
+    float alpha_area = tinymath::cross(
+        triangle.c.coordinates - triangle.b.coordinates, 
+        raster_point - triangle.b.coordinates
+    );
+
+    float beta_area = tinymath::cross(
+        triangle.a.coordinates - triangle.c.coordinates, 
+        raster_point - triangle.c.coordinates
+    );
+    
+    float gamma_area = tinymath::cross(
+        triangle.b.coordinates - triangle.a.coordinates, 
+        raster_point - triangle.a.coordinates
+    );
+
+    screen::BarycentricWeights weights;
+    weights.alpha = alpha_area / twice_signed_area;
+    weights.beta = beta_area / twice_signed_area;
+    weights.gamma = gamma_area / twice_signed_area;
+
+    return weights;
 }

@@ -16,7 +16,7 @@ namespace
     // Right triangle on a 16x16 buffer: right angle at (2,2), legs along the
     // axes, hypotenuse on the line x + y = 16. Interior is x >= 2, y >= 2,
     // x + y <= 16 — easy to reason about which pixels are in/out/on an edge.
-    const Triangle TRI{tinymath::Vec2i{2, 2}, tinymath::Vec2i{14, 2}, tinymath::Vec2i{2, 14}};
+    const Triangle2D TRI{tinymath::Vec2i{2, 2}, tinymath::Vec2i{14, 2}, tinymath::Vec2i{2, 14}};
 
     // Strictly inside — no pixel sits on an edge, so both rungs must fill them.
     const std::vector<tinymath::Vec2i> INTERIOR = {
@@ -28,7 +28,7 @@ namespace
         {10, 10}, {12, 12}, {15, 15}, {1, 10}, {10, 1},
     };
 
-    using DrawTriangleFn = void (*)(Triangle, Color, Framebuffer&);
+    using DrawTriangleFn = void (*)(const Triangle2D&, Color, Framebuffer&);
 
     struct Rung
     {
@@ -38,7 +38,7 @@ namespace
 
     const Rung RUNGS[] = {
         {"scanline", &TriangleRasterizer::drawTriangleScanline},
-        {"barycentric", &TriangleRasterizer::drawTriangle},
+        {"barycentric", &TriangleRasterizer::drawTriangle2D},
     };
 
     // A pixel counts as "set" if any channel is non-zero (the framebuffer clears to all-zero).
@@ -94,7 +94,7 @@ TEST_CASE("both rungs fill the interior and leave the exterior clear", "[triangl
 TEST_CASE("drawTriangle includes edge pixels (>= 0 convention)", "[triangle]")
 {
     Framebuffer fb(16, 16);
-    TriangleRasterizer::drawTriangle(TRI, WHITE, fb);
+    TriangleRasterizer::drawTriangle2D(TRI, WHITE, fb);
 
     REQUIRE(isSet(fb, 8, 2)); // on leg AB (bottom edge, y = 2)
     REQUIRE(isSet(fb, 2, 8)); // on leg AC (left edge, x = 2)
@@ -104,7 +104,7 @@ TEST_CASE("drawTriangle includes edge pixels (>= 0 convention)", "[triangle]")
 
 TEST_CASE("both rungs draw nothing for a degenerate (collinear) triangle", "[triangle]")
 {
-    const Triangle degenerate{tinymath::Vec2i{2, 2}, tinymath::Vec2i{6, 6}, tinymath::Vec2i{10, 10}};
+    const Triangle2D degenerate{tinymath::Vec2i{2, 2}, tinymath::Vec2i{6, 6}, tinymath::Vec2i{10, 10}};
 
     for (const Rung& rung : RUNGS)
     {
