@@ -13,7 +13,7 @@ A second phase (planned) will port the rasterizer algorithms to GPU compute shad
 
 ## Current status
 
-**As of 2026-08-03 — Lesson 3 (Hidden face removal / z-buffer) complete. The depth-buffered rasterizer works: an OBJ model renders solid in the live window with faces resolving in correct depth order per pixel. Back-face culling measures 2.02× on 5022 triangles, and 44 unit tests cover the screen-space layer and the depth test. Next up: Lesson 4, texture mapping.**
+**As of 2026-08-03 — Lesson 3 (Hidden face removal / z-buffer) complete. The depth-buffered rasterizer works: an OBJ model renders solid in the live window with faces resolving in correct depth order per pixel. Back-face culling measures 2.02× on 5022 triangles, and 44 unit tests cover the screen-space layer and the depth test. Lesson 4 (Naive camera handling — rotation + central projection) is in kick-off: concepts under discussion, no code yet.**
 
 Overall arc: work through the TinyRenderer lessons in order (CPU rasterizer, by hand) until an OBJ model head renders shaded in the live window, then a **Phase 2** ports the algorithms to GPU compute shaders using the CPU version as reference.
 
@@ -107,10 +107,17 @@ The project follows the TinyRenderer lesson sequence. Each lesson adds one or mo
 | 1 | Line drawing (Bresenham) | Complete |
 | 2 | Triangle rasterization | Complete |
 | 3 | Hidden face removal (z-buffer) | Complete |
-| 4 | Texture mapping | In progress |
-| 5 | Lighting (Gouraud, Phong) | Planned |
-| 6 | Camera & perspective | Planned |
-| 7 | Shaders (moving to GPU) | Planned |
+| 4 | Naive camera handling (rotation + central projection) | In progress |
+| 5 | Better camera | Planned |
+| 6 | Shading | Planned |
+| 7 | More data! (textures, normal & specular maps) | Planned |
+| 8 | Tangent space | Planned |
+| 9 | Shadow mapping | Planned |
+| 10 | Ambient occlusion | Planned |
+| 11 | Toon shading (bonus) | Planned |
+| — | Phase 2: port the rasterizer to GPU compute shaders | Planned |
+
+> Lesson numbering follows the source series, with one deviation: the series splits "Triangle rasterization" and "Barycentric coordinates" into two lessons, which this project covered together as Lesson 2.
 
 ---
 
