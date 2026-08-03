@@ -141,7 +141,7 @@ void TriangleRasterizer::drawTriangle(const Triangle& triangle, Color color, Fra
     float parallelogram_area = screen::twiceSignedArea(triangle);
     
     // prevents degenerated faces
-    if (parallelogram_area = 0.0f)
+    if (parallelogram_area == 0.0f)
     {
         return;
     }

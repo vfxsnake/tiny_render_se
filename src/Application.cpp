@@ -307,24 +307,18 @@ void Application::testDrawMesh()
 
     Timer timer;
     timer.start();
-    int triangle_count = 0;
     for (auto& [triangle, color] : triangle_and_color_list)
     {
         TriangleRasterizer::drawTriangle(triangle, color, framebuffer_, false);
-        triangle_count++;
     }
     timer.stop();
     std::cout << "drawTriangle barycentric no back face culling processing time: " << timer.elapsedMs() << "ms.\n";
-    std::cout << "total number of triangles drown : " << triangle_count << "\n";
 
     timer.start();
-    triangle_count = 0;
     for (auto& [triangle, color] : triangle_and_color_list)
     {
         TriangleRasterizer::drawTriangle(triangle, color, framebuffer_);
-        triangle_count++;
     }
     timer.stop();
     std::cout << "drawTriangle barycentric with back face culling processing time: " << timer.elapsedMs() << "ms.\n";
-    std::cout << "total number of triangles drown : " << triangle_count << "\n";
 }
