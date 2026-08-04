@@ -16,6 +16,7 @@
 #include "utils/Timer.h"
 #include "io/ObjLoader.h"
 #include "math/Projection.h"
+#include "math/Transform.h"
 
 
 
@@ -284,6 +285,18 @@ void Application::testDrawMesh()
         tinymath::Vec3f b = geometry_mesh.vertices[face_indices[1]];
         tinymath::Vec3f c = geometry_mesh.vertices[face_indices[2]];
 
+        // apply rotation
+        a = tinymath::rotateY(a, 0.785);
+        b = tinymath::rotateY(b, 0.785);
+        c = tinymath::rotateY(c, 0.785);
+
+        // perspective
+        a = tinymath::perspectiveZDivide(a, 3);
+        b = tinymath::perspectiveZDivide(b, 3);
+        c = tinymath::perspectiveZDivide(c, 3);
+        
+
+        // apply projection
         tinymath::Vec3f projected_a = tinymath::orthographicProjection(a, WIDTH, HEIGHT, 1.0f);
         tinymath::Vec3f projected_b = tinymath::orthographicProjection(b, WIDTH, HEIGHT, 1.0f);
         tinymath::Vec3f projected_c = tinymath::orthographicProjection(c, WIDTH, HEIGHT, 1.0f);

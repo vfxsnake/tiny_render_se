@@ -13,7 +13,9 @@ A second phase (planned) will port the rasterizer algorithms to GPU compute shad
 
 ## Current status
 
-**As of 2026-08-03 — Lesson 3 (Hidden face removal / z-buffer) complete. The depth-buffered rasterizer works: an OBJ model renders solid in the live window with faces resolving in correct depth order per pixel. Back-face culling measures 2.02× on 5022 triangles, and 44 unit tests cover the screen-space layer and the depth test. Lesson 4 (Naive camera handling — rotation + central projection) is in kick-off: concepts under discussion, no code yet.**
+**As of 2026-08-04 — Lesson 4 (Naive camera handling) in progress, first code on screen. The model now rotates about the y-axis under central projection: `tinymath::rotateY` (new `math/Transform.h`) and `tinymath::perspectiveDivide` (added to `math/Projection.h`) compose as `orthographicProjection(perspectiveDivide(rotateY(v)))`, and the near side is visibly larger than the far side in the live window. Still spike-quality — free functions, hardcoded 45° and eye distance 3, no `Matrix3x3` yet. Next: deliberately break it three ways (stage order, eye distance, model extent) to diagnose the failure modes, then settle the design and write the lesson doc. Lesson 3 (Hidden face removal / z-buffer) is complete: 2.02× back-face culling on 5022 triangles, 44 unit tests.**
+
+The lesson kick-off protocol changed this session: **spike first, document second.** Concepts are triaged into *show it* (has a visible failure mode — spike and break it, don't pre-discuss), *measure it* (answerable by running numbers over the real mesh) and *discuss it* (genuinely invisible — design forks and effects that only manifest later). The plan doc now records the design the spike earned rather than blocking the first pixels.
 
 Overall arc: work through the TinyRenderer lessons in order (CPU rasterizer, by hand) until an OBJ model head renders shaded in the live window, then a **Phase 2** ports the algorithms to GPU compute shaders using the CPU version as reference.
 

@@ -13,3 +13,11 @@ tinymath::Vec3f tinymath::orthographicProjection(
         ((point_position.z + 1) * depth_scale) / 2,
     };
 }
+
+
+tinymath::Vec3f tinymath::perspectiveZDivide(tinymath::Vec3f point_position, float eye_distance)
+{
+    float k = 1.0f / (1.0f - (point_position.z / eye_distance));
+    
+    return point_position * k;
+}

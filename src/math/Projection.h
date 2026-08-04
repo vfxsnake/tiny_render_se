@@ -11,4 +11,7 @@ namespace tinymath
         float depth_scale
     );
 
+
+    Vec3f perspectiveZDivide(Vec3f point_position, float eye_distance);
+    
 } // end of tinymath namespace

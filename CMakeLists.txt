@@ -58,6 +58,7 @@ add_executable(TinyRendererSE
     src/display/GraphicsPipeline.cpp
     src/io/ObjLoader.cpp
     src/math/Projection.cpp
+    src/math/Transform.cpp
     ${ENGINE_SRC}/core/VulkanContext.cpp
     ${ENGINE_SRC}/core/SwapChain.cpp
 )
