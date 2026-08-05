@@ -13,7 +13,7 @@ A second phase (planned) will port the rasterizer algorithms to GPU compute shad
 
 ## Current status
 
-**As of 2026-08-04 — Lesson 4 (Naive camera handling) in progress, first code on screen. The model now rotates about the y-axis under central projection: `tinymath::rotateY` (new `math/Transform.h`) and `tinymath::perspectiveDivide` (added to `math/Projection.h`) compose as `orthographicProjection(perspectiveDivide(rotateY(v)))`, and the near side is visibly larger than the far side in the live window. Still spike-quality — free functions, hardcoded 45° and eye distance 3, no `Matrix3x3` yet. Next: deliberately break it three ways (stage order, eye distance, model extent) to diagnose the failure modes, then settle the design and write the lesson doc. Lesson 3 (Hidden face removal / z-buffer) is complete: 2.02× back-face culling on 5022 triangles, 44 unit tests.**
+**As of 2026-08-05 — Lesson 4 (Naive camera handling) complete on screen; Lesson 5 (Better camera) is next. The model rotates about the y-axis under central projection: `tinymath::rotateY` (new `math/Transform.h`) and `tinymath::perspectiveZDivide` (added to `math/Projection.h`) compose as `orthographicProjection(perspectiveZDivide(rotateY(v)))`, with the near side visibly larger than the far side in the live window. The stage order and the near/far depth behaviour were both diagnosed by deliberately breaking the spike rather than by argument. `Matrix3x3` was considered and **cancelled** — Lesson 5 needs the 4×4 anyway, so the hand-rolled perspective divide will collapse into the matrix pipeline there. Still spike-quality: free functions, hardcoded 45° and eye distance 3, and no lesson doc for this one. Lesson 3 (Hidden face removal / z-buffer) is complete: 2.02× back-face culling on 5022 triangles, 44 unit tests.**
 
 The lesson kick-off protocol changed this session: **spike first, document second.** Concepts are triaged into *show it* (has a visible failure mode — spike and break it, don't pre-discuss), *measure it* (answerable by running numbers over the real mesh) and *discuss it* (genuinely invisible — design forks and effects that only manifest later). The plan doc now records the design the spike earned rather than blocking the first pixels.
 
@@ -28,7 +28,11 @@ Overall arc: work through the TinyRenderer lessons in order (CPU rasterizer, by 
 
   `drawTriangle` interpolates depth from the barycentric weights and runs a per-pixel depth test (convention: clear `0.0f` = far, keep larger z), which **resolves the model's front and back surfaces correctly** — the lesson's exit condition. Back-face culling ships as an optional flag driven by the sign of the signed area and measures **2.02×** on 5022 triangles (11.71 ms → 5.79 ms, Release; 2314 culled), verified to leave the image pixel-identical since culling is a pure optimization. 44 unit tests cover the three `screen::` functions, depth interpolation, the order-independence of the depth test, and culling.
 
-Per-lesson design docs live in [`docs/lessons/`](docs/lessons/).
+- **Lesson 4 — Naive camera handling: complete.** The fixed head-on orthographic view became a movable one. Two free functions in `tinymath` — `rotateY` in a new `math/Transform.h/.cpp`, `perspectiveZDivide` beside `orthographicProjection` in `math/Projection.h/.cpp` — composed as `rotateY → perspectiveZDivide → orthographicProjection`. The file split is deliberate: it is the **model-view / projection separation showing up as a file boundary**. Rotation stayed a free function rather than a `Vec3` method, because rotation is a map *applied to* a vector, not a property *of* one.
+
+  The lesson's substance came from breaking the spike on purpose. **Running the divide before the rotation** turns it from a projection into a non-rigid deformation in object space — diablo's tail, which points backwards, gets physically shortened along its own axis and then swung sideways into view; the tell is that the distortion follows *anatomy* rather than viewing direction. **Sweeping the eye distance** established that `c` is camera *distance*, not focal length (focal length alone changes no geometry; the screen sits at `z = 0` through the model, so `c` is eye-to-subject and eye-to-screen at once, and moving it is a dolly). It also inverted an assumption: since `k = 1/(1 − z/c)` is `< 1` behind the pivot plane, **the perspective divide compresses the far side and therefore protects the depth invariant — orthographic is the worst case for depth, not the safest.** The lesson's own homework bug (an 8-bit grayscale z-buffer wrapping at `1.17 × 255`) cannot reach a float depth buffer; the remaining hole mechanism is the `0.0f` clear, which needs a mesh deeper than the `[−1,1]` box that `orthographicProjection` assumes — **a property of the model, not the camera.**
+
+Per-lesson design docs live in [`docs/lessons/`](docs/lessons/) — Lesson 4 is the one gap, closed on screen but never written up.
 
 ---
 
@@ -109,8 +113,8 @@ The project follows the TinyRenderer lesson sequence. Each lesson adds one or mo
 | 1 | Line drawing (Bresenham) | Complete |
 | 2 | Triangle rasterization | Complete |
 | 3 | Hidden face removal (z-buffer) | Complete |
-| 4 | Naive camera handling (rotation + central projection) | In progress |
-| 5 | Better camera | Planned |
+| 4 | Naive camera handling (rotation + central projection) | Complete (no lesson doc) |
+| 5 | Better camera | Next |
 | 6 | Shading | Planned |
 | 7 | More data! (textures, normal & specular maps) | Planned |
 | 8 | Tangent space | Planned |
