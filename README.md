@@ -13,7 +13,7 @@ A second phase (planned) will port the rasterizer algorithms to GPU compute shad
 
 ## Current status
 
-**As of 2026-08-05 — Lesson 4 (Naive camera handling) complete on screen; Lesson 5 (Better camera) is next. The model rotates about the y-axis under central projection: `tinymath::rotateY` (new `math/Transform.h`) and `tinymath::perspectiveZDivide` (added to `math/Projection.h`) compose as `orthographicProjection(perspectiveZDivide(rotateY(v)))`, with the near side visibly larger than the far side in the live window. The stage order and the near/far depth behaviour were both diagnosed by deliberately breaking the spike rather than by argument. `Matrix3x3` was considered and **cancelled** — Lesson 5 needs the 4×4 anyway, so the hand-rolled perspective divide will collapse into the matrix pipeline there. Still spike-quality: free functions, hardcoded 45° and eye distance 3, and no lesson doc for this one. Lesson 3 (Hidden face removal / z-buffer) is complete: 2.02× back-face culling on 5022 triangles, 44 unit tests.**
+**As of 2026-08-05 — Lesson 4 (Naive camera handling) complete on screen; Lesson 5 (Better camera) is next. The model rotates about the y-axis under central projection: `tinymath::rotateY` (new `math/Transform.h`) and `tinymath::perspectiveZDivide` (added to `math/Projection.h`) compose as `orthographicProjection(perspectiveZDivide(rotateY(v)))`, with the near side visibly larger than the far side in the live window. The stage order and the near/far depth behaviour were both diagnosed by deliberately breaking the spike rather than by argument. `Matrix3x3` was considered and **cancelled** — Lesson 5 needs the 4×4 anyway, so the hand-rolled perspective divide will collapse into the matrix pipeline there. Still spike-quality: free functions, hardcoded 45° and eye distance 3, and no lesson doc for this one. **Lesson 5 is planned in full** — see [`docs/lessons/lesson5_camera.md`](docs/lessons/lesson5_camera.md) for the `Vec4` → `Matrix4x4` → `lookAt`/`perspective`/`viewport` order — but no code is written yet. Lesson 3 (Hidden face removal / z-buffer) is complete: 2.02× back-face culling on 5022 triangles, 44 unit tests.**
 
 The lesson kick-off protocol changed this session: **spike first, document second.** Concepts are triaged into *show it* (has a visible failure mode — spike and break it, don't pre-discuss), *measure it* (answerable by running numbers over the real mesh) and *discuss it* (genuinely invisible — design forks and effects that only manifest later). The plan doc now records the design the spike earned rather than blocking the first pixels.
 
@@ -114,7 +114,7 @@ The project follows the TinyRenderer lesson sequence. Each lesson adds one or mo
 | 2 | Triangle rasterization | Complete |
 | 3 | Hidden face removal (z-buffer) | Complete |
 | 4 | Naive camera handling (rotation + central projection) | Complete (no lesson doc) |
-| 5 | Better camera | Next |
+| 5 | Better camera | Planned (doc written, no code) |
 | 6 | Shading | Planned |
 | 7 | More data! (textures, normal & specular maps) | Planned |
 | 8 | Tangent space | Planned |
