@@ -40,6 +40,34 @@ target_link_libraries(test_vec3 PRIVATE
     Catch2::Catch2WithMain
 )
 
+# Vect4 test block
+add_executable(test_vec4
+    test_vec4.cpp
+    ${CMAKE_SOURCE_DIR}/src/math/Vec4.h
+)
+
+target_include_directories(test_vec4 PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+target_link_libraries(test_vec4 PRIVATE
+    Catch2::Catch2WithMain
+)
+
+# Matrix4x4 test block
+add_executable(test_matrix4x4
+    test_matrix4x4.cpp
+    ${CMAKE_SOURCE_DIR}/src/math/Matrix4x4.h
+)
+
+target_include_directories(test_matrix4x4 PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+target_link_libraries(test_matrix4x4 PRIVATE
+    Catch2::Catch2WithMain
+)
+
 # LineDrawer test block
 add_executable(test_linedrawer
     test_linedrawer.cpp
@@ -76,5 +104,7 @@ include(Catch)
 catch_discover_tests(test_framebuffer)
 catch_discover_tests(test_vec2)
 catch_discover_tests(test_vec3)
+catch_discover_tests(test_vec4)
+catch_discover_tests(test_matrix4x4)
 catch_discover_tests(test_linedrawer)
 catch_discover_tests(test_triangle_rasterizer)
