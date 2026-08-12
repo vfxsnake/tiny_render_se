@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
 
 #include "math/Vec3.h"
 
@@ -122,4 +123,67 @@ TEST_CASE("Vec3 cross produces the perpendicular vector", "[Vec3]")
     REQUIRE(self.x == 0);
     REQUIRE(self.y == 0);
     REQUIRE(self.z == 0);
+}
+
+
+TEST_CASE("Vec3 length is the euclidean magnitude", "[Vec3]")
+{
+    // Pythagorean triples: the sum of squares is a perfect square, so the
+    // square root is exact in float and == is safe.
+    REQUIRE(length(tinymath::Vec3f{3.0f, 4.0f, 0.0f}) == 5.0f);
+    REQUIRE(length(tinymath::Vec3f{2.0f, 3.0f, 6.0f}) == 7.0f);
+
+    // A unit axis has length 1.
+    REQUIRE(length(tinymath::Vec3f{0.0f, 1.0f, 0.0f}) == 1.0f);
+
+    // Length is unsigned — negating every component cannot change it.
+    REQUIRE(length(tinymath::Vec3f{-3.0f, -4.0f, 0.0f}) == 5.0f);
+
+    // The zero vector is the only one with zero length. It is also the input
+    // normalize cannot survive — see the note at the end of the next case.
+    REQUIRE(length(tinymath::Vec3f{0.0f, 0.0f, 0.0f}) == 0.0f);
+}
+
+
+TEST_CASE("Vec3 normalize preserves direction and yields unit length", "[Vec3]")
+{
+    // Hand-computable: the length is exactly 7, so the components must be
+    // 2/7, 3/7, 6/7. Pinning all three catches a swapped or dropped component,
+    // which a length-only check would pass.
+    tinymath::Vec3f const a{2.0f, 3.0f, 6.0f};
+
+    tinymath::Vec3f unit = normalize(a);
+    REQUIRE(unit.x == Catch::Approx(2.0f / 7.0f));
+    REQUIRE(unit.y == Catch::Approx(3.0f / 7.0f));
+    REQUIRE(unit.z == Catch::Approx(6.0f / 7.0f));
+
+    // The defining property, on a vector with no tidy length.
+    REQUIRE(length(normalize(tinymath::Vec3f{1.0f, 2.0f, 3.0f})) == Catch::Approx(1.0f));
+
+    // Sign survives. An abs() slipped into length or normalize would turn this
+    // into +1 and still pass every magnitude assertion above.
+    // 1/4 is exactly representable, so this needs no tolerance.
+    tinymath::Vec3f negative = normalize(tinymath::Vec3f{0.0f, 0.0f, -4.0f});
+    REQUIRE(negative.x == 0.0f);
+    REQUIRE(negative.y == 0.0f);
+    REQUIRE(negative.z == -1.0f);
+
+    // Direction is scale-invariant: normalize discards magnitude and nothing
+    // else, so a vector and its tenfold produce the same unit vector.
+    tinymath::Vec3f base = normalize(tinymath::Vec3f{1.0f, 2.0f, 3.0f});
+    tinymath::Vec3f scaled_up = normalize(tinymath::Vec3f{10.0f, 20.0f, 30.0f});
+    REQUIRE(base.x == Catch::Approx(scaled_up.x));
+    REQUIRE(base.y == Catch::Approx(scaled_up.y));
+    REQUIRE(base.z == Catch::Approx(scaled_up.z));
+
+    // Normalizing an already-unit vector is a no-op — the divide is by 1.
+    tinymath::Vec3f axis = normalize(tinymath::Vec3f{0.0f, 1.0f, 0.0f});
+    REQUIRE(axis.x == 0.0f);
+    REQUIRE(axis.y == 1.0f);
+    REQUIRE(axis.z == 0.0f);
+
+    // normalize({0, 0, 0}) is deliberately NOT tested. It is the open question
+    // of this lesson: unguarded, it divides by zero and returns all-NaN. A test
+    // here would pin down behaviour we intend to change once lookAt shows what
+    // that failure actually looks like on screen.
 }

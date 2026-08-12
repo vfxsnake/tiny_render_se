@@ -106,9 +106,17 @@ name and a comment while the reason is fresh.
 3. **`Vec3` gains `length()` / `normalize()`** — free functions, as CLAUDE.md already specifies. `lookAt` is the
    caller that finally forces them; only `dot` and `cross` exist today.
 4. **The three builders** — `lookAt`, `perspective`, `viewport`.
-5. **Wire into `testDrawMesh`** — compose once outside the triangle loop; per vertex embed → multiply → divide
-   by `w` → build the `Triangle`.
-6. **Retire the spike** — after confirming the image is unchanged.
+5. **Wire the matrix path into its own draw function** — compose once outside the triangle loop; per vertex
+   embed → multiply → divide by `w` → build the `Triangle`.
+6. **Compare the two paths** — confirm the matrix path renders pixel-identical to the spike.
+
+**Step 6 amended in Session 34.** It was originally *"retire the spike — after confirming the image is
+unchanged"*. The spike functions are now **kept**: the matrix path goes in **beside** `testDrawMesh` as a
+second draw function rather than replacing its body, so the two pipelines can be rendered against each other on
+demand. This is a learning project, and the superseded rung is worth keeping as the reference the new one is
+checked against — the same treatment the three line-drawing rungs and the two triangle-rasterization rungs
+already receive. The pixel-identical check therefore stops being a one-shot gate before a deletion and becomes a
+standing A/B.
 
 Step 5 also disposes of a Lesson 4 note without further work: `rotateY` recomputed `std::cos`/`std::sin` per
 vertex, and the trig now runs once inside `lookAt`. That was the benchmark that would have justified
@@ -152,16 +160,23 @@ Conversion function names deliberately left open — the user's call.
 **API added:**
 - `Matrix4x4 lookAt(Vec3f eye, Vec3f center, Vec3f up)` — orthonormal camera basis × translate by `−center`
 
-**Removed at step 6:** `rotateY` — unless kept deliberately as a model transform (the M that `lookAt` does not
-supply). Decide when the matrix path renders correctly, not before.
+**Kept, not removed** *(amended Session 34)*: `rotateY` stays — both as the spike half of the standing A/B, and
+because it remains the model transform (the M that `lookAt` does not supply).
 
 ### `src/math/Projection.h/.cpp` (extended)
 
 **API added:**
 - `Matrix4x4 perspective(float focal_length)` — identity with `−1/f` in the bottom row
-- `Matrix4x4 viewport(int x, int y, int width, int height)` — clip `[−1,1]` → screen, **with our depth mapping**
+- `Matrix4x4 viewport(int screen_width, int screen_height)` — clip `[−1,1]` → screen, **with our depth mapping**
 
-**Removed at step 6:** `perspectiveZDivide`, and `orthographicProjection` once `viewport` supersedes it.
+  *Amended in Session 34.* The originally planned `(int x, int y, int width, int height)` signature carried a
+  viewport **origin offset** for rendering into a sub-rectangle. Dropped — nothing calls with a non-zero origin,
+  same rule that cancelled `Matrix3x3` and `length2`. The depth parameter is likewise absent: `depth_scale` was
+  `1.0f` at every one of the three `orthographicProjection` call sites, so the `[−1,1] → [0,1]` mapping is a
+  constant in the body, not a parameter.
+
+**Kept, not removed** *(amended Session 34)*: `perspectiveZDivide` and `orthographicProjection` both stay as the
+spike half of the standing A/B against `perspective` / `viewport`.
 
 ### `tests/test_vec4.cpp`
 
