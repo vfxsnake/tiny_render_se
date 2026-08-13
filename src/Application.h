@@ -53,6 +53,7 @@ private:
     void testDrawTriangleAlgorithms();
     void testDrawWireFrame();
     void testDrawMesh();
+    void testDrawMeshMatrix();
 
     static constexpr uint32_t WIDTH = 800;
     static constexpr uint32_t HEIGHT = 800;

@@ -49,7 +49,8 @@ void Application::run()
     // testDrawLineAlgorithms();
     // testDrawTriangleAlgorithms();
     // testDrawWireFrame();
-    testDrawMesh();
+    // testDrawMesh();
+    testDrawMeshMatrix();
 
     mainLoop();
 }
@@ -305,6 +306,75 @@ void Application::testDrawMesh()
             {{projected_a.x, projected_a.y}, projected_a.z},
             {{projected_b.x, projected_b.y}, projected_b.z},
             {{projected_c.x, projected_c.y}, projected_c.z},
+        };
+
+        
+        Color rand_color{
+            static_cast<uint8_t>(dist(gen)),
+            static_cast<uint8_t>(dist(gen)),
+            static_cast<uint8_t>(dist(gen)),
+            255 
+        };
+        
+        triangle_and_color_list.push_back({triangle, rand_color});
+    }
+
+    Timer timer;
+    timer.start();
+    for (auto& [triangle, color] : triangle_and_color_list)
+    {
+        TriangleRasterizer::drawTriangle(triangle, color, framebuffer_, false);
+    }
+    timer.stop();
+    std::cout << "drawTriangle barycentric no back face culling processing time: " << timer.elapsedMs() << "ms.\n";
+
+    timer.start();
+    for (auto& [triangle, color] : triangle_and_color_list)
+    {
+        TriangleRasterizer::drawTriangle(triangle, color, framebuffer_);
+    }
+    timer.stop();
+    std::cout << "drawTriangle barycentric with back face culling processing time: " << timer.elapsedMs() << "ms.\n";
+}
+
+
+void Application::testDrawMeshMatrix()
+{
+    framebuffer_.clear(Color{0,0,0,0});
+    const io::Mesh geometry_mesh = io::loadObj("models/diablo3_pose.obj");
+
+    // color randomization setup
+    std::mt19937 gen(753);
+    std::uniform_int_distribution<int> dist{0, 255};
+    std::vector<std::pair<Triangle, Color>> triangle_and_color_list;
+
+    // transformation matrix
+    tinymath::Matrix4x4 transformation_matrix = tinymath::viewport(WIDTH, HEIGHT) * 
+                                                tinymath::perspective(3.0f) *
+                                                tinymath::lookAt(
+                                                    {1.0f, 1.0f, 2.12f}, 
+                                                    {0.0f, 0.0f, 0.0f}, 
+                                                    {0.0f, 1.0f, 0.0f}
+                                                );
+
+    for (const std::array<int, 3>& face_indices : geometry_mesh.faceIndices)
+    {
+        tinymath::Vec3f a = geometry_mesh.vertices[face_indices[0]];
+        tinymath::Vec3f b = geometry_mesh.vertices[face_indices[1]];
+        tinymath::Vec3f c = geometry_mesh.vertices[face_indices[2]];
+        
+        tinymath::Vec4f a_transform = transformation_matrix * tinymath::toVec4(a);
+        tinymath::Vec4f b_transform = transformation_matrix * tinymath::toVec4(b); 
+        tinymath::Vec4f c_transform = transformation_matrix * tinymath::toVec4(c); 
+
+        tinymath::Vec3f a_projected = tinymath::toVec3(a_transform);
+        tinymath::Vec3f b_projected = tinymath::toVec3(b_transform);
+        tinymath::Vec3f c_projected = tinymath::toVec3(c_transform);
+
+        Triangle triangle{
+            {{a_projected.x, a_projected.y}, a_projected.z},
+            {{b_projected.x, b_projected.y}, b_projected.z},
+            {{c_projected.x, c_projected.y}, c_projected.z},
         };
 
         
