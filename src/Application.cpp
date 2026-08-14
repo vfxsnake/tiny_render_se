@@ -39,12 +39,6 @@ Application::~Application()
 void Application::run()
 {
 
-    Color black{0,0,0,0};
-    Color white{255, 255, 255, 255};
-    Color red{255, 0, 0, 255};
-    Color green{0, 255, 0, 255};
-    Color blue{0, 0, 255, 255};
-
     // algorithms test:
     // testDrawLineAlgorithms();
     // testDrawTriangleAlgorithms();
@@ -182,7 +176,6 @@ void Application::testDrawTriangleAlgorithms()
     // defining the range
     std::uniform_int_distribution<int> dist_x{0, WIDTH - 1};
     std::uniform_int_distribution<int> dist_y{0, HEIGHT - 1};
-    Color white{255, 255, 255, 255};
     Color red{255, 0, 0, 255};
     Color green{0, 255, 0, 255};
 
@@ -287,9 +280,9 @@ void Application::testDrawMesh()
         tinymath::Vec3f c = geometry_mesh.vertices[face_indices[2]];
 
         // apply rotation
-        a = tinymath::rotateY(a, 0.785);
-        b = tinymath::rotateY(b, 0.785);
-        c = tinymath::rotateY(c, 0.785);
+        a = tinymath::rotateY(a, 0.785f);
+        b = tinymath::rotateY(b, 0.785f);
+        c = tinymath::rotateY(c, 0.785f);
 
         // perspective
         a = tinymath::perspectiveZDivide(a, 3);
@@ -352,7 +345,7 @@ void Application::testDrawMeshMatrix()
     tinymath::Matrix4x4 transformation_matrix = tinymath::viewport(WIDTH, HEIGHT) * 
                                                 tinymath::perspective(3.0f) *
                                                 tinymath::lookAt(
-                                                    {1.0f, 1.0f, 2.12f}, 
+                                                    {2.5f, 1.0f, 2.5f}, 
                                                     {0.0f, 0.0f, 0.0f}, 
                                                     {0.0f, 1.0f, 0.0f}
                                                 );

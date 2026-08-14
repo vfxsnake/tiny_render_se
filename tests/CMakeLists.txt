@@ -1,110 +1,55 @@
-# Framebuffer Tests block
-add_executable(test_framebuffer
-    test_framebuffer.cpp
+list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
+include(Catch)
+
+# add_project_test(<target_name> [extra sources...])
+#
+# The test source is derived from the target name (test_vec3 -> test_vec3.cpp).
+# Any extra arguments are additional .cpp files the test needs to link.
+function(add_project_test target_name)
+    add_executable(${target_name}
+        ${target_name}.cpp
+        ${ARGN}
+    )
+
+    target_include_directories(${target_name} PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+    )
+
+    target_link_libraries(${target_name} PRIVATE
+        Catch2::Catch2WithMain
+    )
+
+    target_compile_options(${target_name} PRIVATE
+        ${PROJECT_WARNING_FLAGS}
+    )
+
+    catch_discover_tests(${target_name})
+endfunction()
+
+
+add_project_test(test_vec2)
+add_project_test(test_vec3)
+add_project_test(test_vec4)
+add_project_test(test_matrix4x4)
+
+add_project_test(test_transform
+    ${CMAKE_SOURCE_DIR}/src/math/Transform.cpp
+)
+
+add_project_test(test_projection
+    ${CMAKE_SOURCE_DIR}/src/math/Projection.cpp
+)
+
+add_project_test(test_framebuffer
     ${CMAKE_SOURCE_DIR}/src/rasterizer/Framebuffer.cpp
 )
 
-target_include_directories(test_framebuffer PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-)
-
-target_link_libraries(test_framebuffer PRIVATE
-    Catch2::Catch2WithMain
-)
-
-# Vect2 test block
-add_executable(test_vec2
-    test_vec2.cpp
-    ${CMAKE_SOURCE_DIR}/src/math/Vec2.h
-)
-
-target_include_directories(test_vec2 PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-)
-
-target_link_libraries(test_vec2 PRIVATE
-    Catch2::Catch2WithMain
-)
-
-# Vect3 test block
-add_executable(test_vec3
-    test_vec3.cpp
-    ${CMAKE_SOURCE_DIR}/src/math/Vec3.h
-)
-
-target_include_directories(test_vec3 PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-)
-
-target_link_libraries(test_vec3 PRIVATE
-    Catch2::Catch2WithMain
-)
-
-# Vect4 test block
-add_executable(test_vec4
-    test_vec4.cpp
-    ${CMAKE_SOURCE_DIR}/src/math/Vec4.h
-)
-
-target_include_directories(test_vec4 PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-)
-
-target_link_libraries(test_vec4 PRIVATE
-    Catch2::Catch2WithMain
-)
-
-# Matrix4x4 test block
-add_executable(test_matrix4x4
-    test_matrix4x4.cpp
-    ${CMAKE_SOURCE_DIR}/src/math/Matrix4x4.h
-)
-
-target_include_directories(test_matrix4x4 PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-)
-
-target_link_libraries(test_matrix4x4 PRIVATE
-    Catch2::Catch2WithMain
-)
-
-# LineDrawer test block
-add_executable(test_linedrawer
-    test_linedrawer.cpp
+add_project_test(test_linedrawer
     ${CMAKE_SOURCE_DIR}/src/rasterizer/LineDrawer.cpp
     ${CMAKE_SOURCE_DIR}/src/rasterizer/Framebuffer.cpp
 )
 
-target_include_directories(test_linedrawer PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-)
-
-target_link_libraries(test_linedrawer PRIVATE
-    Catch2::Catch2WithMain
-)
-
-# TriangleRasterizer test block
-add_executable(test_triangle_rasterizer
-    test_triangle_rasterizer.cpp
+add_project_test(test_triangle_rasterizer
     ${CMAKE_SOURCE_DIR}/src/rasterizer/TriangleRasterizer.cpp
     ${CMAKE_SOURCE_DIR}/src/rasterizer/Framebuffer.cpp
 )
-
-target_include_directories(test_triangle_rasterizer PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-)
-
-target_link_libraries(test_triangle_rasterizer PRIVATE
-    Catch2::Catch2WithMain
-)
-
-# appending test
-list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
-include(Catch)
-catch_discover_tests(test_framebuffer)
-catch_discover_tests(test_vec2)
-catch_discover_tests(test_vec3)
-catch_discover_tests(test_vec4)
-catch_discover_tests(test_matrix4x4)
-catch_discover_tests(test_linedrawer)
-catch_discover_tests(test_triangle_rasterizer)

@@ -80,7 +80,6 @@ void LineDrawer::drawLineAccum(tinymath::Vec2i a, tinymath::Vec2i b, Color color
         
     
     int delta_y = b.y - a.y;
-    int minor_direction = (delta_y >= 0) ? 1: -1;
 
     float minor_axis_step = float(delta_y) / float(delta_x);
     float minor_step_accumulation = 0.0f;

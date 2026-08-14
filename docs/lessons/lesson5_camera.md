@@ -2,9 +2,23 @@
 
 **Source:** https://haqr.eu/tinyrenderer/camera/
 
-> **Status:** implementation plan agreed, no code written. Written ahead of the spike by explicit request — the
-> usual "spike first, document second" order was skipped because Lesson 4 already established every concept this
-> lesson builds on, and the design fork (`Matrix4x4`) was settled at the end of Lesson 4 rather than being open.
+> **Status: complete (2026-08-14).** All six steps done, exit condition met: `Application::testDrawMeshMatrix()`
+> is the live render path, the transform is composed once per frame, and `rotateY` / `perspectiveZDivide` are
+> unreferenced by it. `Vec4`, `Matrix4x4`, the three builders and `transpose` are all unit-tested.
+>
+> This document was written ahead of the spike by explicit request — the usual "spike first, document second"
+> order was skipped because Lesson 4 already established every concept this lesson builds on, and the design fork
+> (`Matrix4x4`) was settled at the end of Lesson 4 rather than being open. Two things the plan did not anticipate
+> and which the implementation settled on screen:
+>
+> - **The basis-as-rows convention was confirmed by rendering the wrong version on purpose.** For an orthonormal
+>   basis the transpose *is* the inverse, so writing the basis into columns produces a valid rotation the wrong
+>   way round — the viewpoint swings below and mirrors, and nothing in the image looks broken. The conventions
+>   are now documented in `Matrix4x4.h` and pinned by a test in `test_transform`.
+> - **`normalize` gained an `assert` against the zero vector.** A camera looking straight down makes
+>   `cross(up, n)` exactly zero; IEEE 754 returns NaN rather than trapping, every comparison against NaN is
+>   false, so the rasterizer's bounding box silently rejects every pixel and the frame goes black with no
+>   diagnostic — indistinguishable from any other black frame, which is what earned the guard.
 
 ## Goal
 
@@ -117,6 +131,18 @@ demand. This is a learning project, and the superseded rung is worth keeping as 
 checked against — the same treatment the three line-drawing rungs and the two triangle-rasterization rungs
 already receive. The pixel-identical check therefore stops being a one-shot gate before a deletion and becomes a
 standing A/B.
+
+**Amended again in Session 37 — the standing A/B is downgraded to history.** The check itself passed: pushing a
+single point through both chains and comparing screen coordinates exposed a 0.102 px gap, traced by prediction to
+the spike's `0.785` not being π/4 (short by 3.98e-4 rad), which made the *matrix* path the more accurate of the
+two. It matched exactly once the spike used π/4. The eyeball comparison could not have settled this — the model
+is a near bilaterally symmetric humanoid, so the two candidate camera positions render as mirror images and look
+identical, and the comparison had to be done in numbers.
+
+The spike has since been left on `0.785f` deliberately: it is kept for reference, not as a live comparison, and
+the reason to prefer the matrix path is already understood. The consequence is that the two paths now differ by
+~0.1 px **by construction** and can never be pixel-identical again, so step 6 is a completed check rather than a
+repeatable one. A comment on the literal records this, so the offset is not rediscovered later as a bug.
 
 Step 5 also disposes of a Lesson 4 note without further work: `rotateY` recomputed `std::cos`/`std::sin` per
 vertex, and the trig now runs once inside `lookAt`. That was the benchmark that would have justified

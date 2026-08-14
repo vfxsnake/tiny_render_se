@@ -5,6 +5,14 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# ── Warning flags ─────────────────────────────────────────────────────────────
+# Applied per target (never globally) so FetchContent dependencies stay quiet.
+set(PROJECT_WARNING_FLAGS
+    $<$<CXX_COMPILER_ID:MSVC>:/W4>
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall>
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wextra>
+)
+
 enable_testing()
 
 # ── Vulkan SDK ─────────────────────────────────────────────────────────────────
@@ -77,6 +85,10 @@ target_link_libraries(TinyRendererSE PRIVATE
 
 target_compile_definitions(TinyRendererSE PRIVATE
     VULKAN_HPP_NO_CONSTRUCTORS
+)
+
+target_compile_options(TinyRendererSE PRIVATE
+    ${PROJECT_WARNING_FLAGS}
 )
 
 # Shaders block

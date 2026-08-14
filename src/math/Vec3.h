@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <cassert>
 
 namespace tinymath
 {
@@ -58,12 +59,12 @@ namespace tinymath
     template <typename T>
     Vec3<T> normalize(Vec3<T> vec)
     {
-        // unguarded version of normalize, this is on purpose to demonstrate a misbehavior.
         T vec_length = length(vec);
+        assert(vec_length > T(0) && "normalize: zero-length vector");
         return vec * (1 / vec_length);
     }
 
-
+    
     using Vec3f = Vec3<float>; 
 
 } // end of tinymath name space

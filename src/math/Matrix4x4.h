@@ -8,6 +8,19 @@ namespace tinymath
     /*
         Matrix structure, contains data as [4][4] float array data.
         data[row][column] layout.
+
+        Conventions — all four are load-bearing, none are visible in the layout above:
+
+        - Column vectors. A point is a column, so transforms apply as M * v.
+        - Right to left composition. In A * B, B is applied to the vector first.
+          viewport * perspective * lookAt therefore runs lookAt first.
+        - Translation lives in the fourth column: data[0][3], data[1][3], data[2][3].
+        - An orientation goes in as ROWS, not columns. Row 0 is the x axis of the
+          target space, row 1 the y axis, row 2 the z axis, so output x is the dot
+          of row 0 with the input. Writing the same basis into the columns builds
+          the transpose, which for an orthonormal basis is the inverse — a valid
+          rotation the wrong way round. It renders a plausible image and nothing
+          about it looks broken. Confirmed on screen (lesson 5).
     */
     struct Matrix4x4
     {
@@ -64,5 +77,19 @@ namespace tinymath
             };
         }
     };
+
+    inline Matrix4x4 transpose(const Matrix4x4& matrix)
+    {
+        Matrix4x4 transpose_matrix;
+        for (int i = 0; i < 4; i++)
+        {
+            for(int j = 0; j < 4; j++)
+            {
+                transpose_matrix.data[j][i] = matrix.data[i][j];
+            }
+        }
+
+        return transpose_matrix;
+    }
     
 } // end of tinymath namespace
