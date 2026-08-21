@@ -55,6 +55,7 @@ private:
     void testDrawMesh();
     void testDrawMeshMatrix();
     void testDrawMeshMatrixLightWorldSpace();
+    void testDrawMeshMatrixLightScreenSpace();
 
     static constexpr uint32_t WIDTH = 800;
     static constexpr uint32_t HEIGHT = 800;
