@@ -45,8 +45,9 @@ void Application::run()
     // testDrawTriangleAlgorithms();
     // testDrawWireFrame();
     // testDrawMesh();
-    testDrawMeshMatrixLightWorldSpace();
+    // testDrawMeshMatrixLightWorldSpace();
     // testDrawMeshMatrixLightScreenSpace();
+    testDrawMeshMatrixLightNormalsCheckIntegrity();
 
     mainLoop();
 }
@@ -507,6 +508,82 @@ void Application::testDrawMeshMatrixLightScreenSpace()
             static_cast<uint8_t>(intensity * 255),
             255 
         };
+
+        Triangle triangle{
+            {{a_projected.x, a_projected.y}, a_projected.z},
+            {{b_projected.x, b_projected.y}, b_projected.z},
+            {{c_projected.x, c_projected.y}, c_projected.z},
+        };
+        
+        triangle_and_color_list.push_back({triangle, triangle_color});
+    }
+
+    for (auto& [triangle, color] : triangle_and_color_list)
+    {
+        TriangleRasterizer::drawTriangle(triangle, color, framebuffer_);
+    }
+
+}
+
+
+void Application::testDrawMeshMatrixLightNormalsCheckIntegrity()
+{
+    framebuffer_.clear(Color{0,0,0,0});
+    const io::Mesh geometry_mesh = io::loadObj("models/diablo3_pose.obj");
+
+    if (geometry_mesh.vertices.size() != geometry_mesh.normals.size())
+    {
+        std::cout << "mismatch from vertices and normals count!!";
+        return;
+    }
+    
+    if (geometry_mesh.faceIndices.size() != geometry_mesh.faceNormalIndices.size())
+    {
+        std::cout << "mismatch from faceIndex and face NormalsIndices sizes!!!";
+        return;
+    }
+
+    std::vector<std::pair<Triangle, Color>> triangle_and_color_list;
+
+    // transformation matrix
+    tinymath::Matrix4x4 transformation_matrix = tinymath::viewport(WIDTH, HEIGHT) * 
+                                                tinymath::perspective(3.0f) *
+                                                tinymath::lookAt(
+                                                    {2.5f, 1.0f, 2.5f}, 
+                                                    {0.0f, 0.0f, 0.0f}, 
+                                                    {0.0f, 1.0f, 0.0f}
+                                                );
+    
+    // temp light direction
+    tinymath::Vec3f light_direction = {0.0f, 0.0f, 1.0f};
+
+    for (int index = 0; index < geometry_mesh.faceIndices.size(); index++)
+    {
+        auto face_indices = geometry_mesh.faceIndices[index];
+        // auto nomal_indices = geometry_mesh.faceNormalIndices[index];
+        tinymath::Vec3f a = geometry_mesh.vertices[face_indices[0]];
+        tinymath::Vec3f b = geometry_mesh.vertices[face_indices[1]];
+        tinymath::Vec3f c = geometry_mesh.vertices[face_indices[2]];
+        
+        // calculate triangle normal
+        tinymath::Vec3f triangle_normal = normalize(cross(b - a, c - a));
+        
+        float intensity = std::max(0.0f, dot(triangle_normal, light_direction));
+        
+        Color triangle_color{
+            static_cast<uint8_t>(intensity * 255),
+            static_cast<uint8_t>(intensity * 255),
+            static_cast<uint8_t>(intensity * 255),
+            255 
+        };
+
+        tinymath::Vec4f a_transform = transformation_matrix * tinymath::toVec4(a);
+        tinymath::Vec4f b_transform = transformation_matrix * tinymath::toVec4(b); 
+        tinymath::Vec4f c_transform = transformation_matrix * tinymath::toVec4(c); 
+
+        tinymath::Vec3f a_projected = tinymath::toVec3(a_transform);
+        tinymath::Vec3f b_projected = tinymath::toVec3(b_transform);
+        tinymath::Vec3f c_projected = tinymath::toVec3(c_transform);
 
         Triangle triangle{
             {{a_projected.x, a_projected.y}, a_projected.z},
