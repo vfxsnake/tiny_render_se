@@ -208,7 +208,7 @@ lesson.** (Specular *maps* belong to the next lesson, "More data!".)
 | `RandomShader` rung | Kept, as step 3.5 before `FaceShader` | Isolates the plumbing from the shading: five suspects instead of six on a wrong picture, and the correct image is already known from Lesson 3. A constant/unlit model at primitive rate — the control that changes one axis at a time. |
 | Lesson scope | Ends at Phong + specular | The source lesson runs that far and every term is uniform-only. Gouraud vs Phong is unpersuasive under pure diffuse; the vanishing highlight needs the specular term. |
 | `AbstractShader` ownership | Abstract base class with two pure virtuals; shaders are stack objects at the call site | Three implementors exist by the end of the lesson, so the interface is earned rather than premature. |
-| Shader file location | `src/rasterizer/shaders/` | The shaders speak the rasterizer's vocabulary (`screen::BarycentricWeights`, `Color`) and the rasterizer calls them — one component, not two. A bare `src/shaders/` would also collide with the repo-root `shaders/` holding the Slang GPU source (`CMakeLists.txt:101`). `materials/` was considered and rejected: the shadow-mapping depth pass is an implementor but not a material. |
+| Shader file location | `src/rasterizer/shaders/` — the `AbstractShader` interface included | The shaders speak the rasterizer's vocabulary (`screen::BarycentricWeights`, `Color`) and the rasterizer calls them — one component, not two. A bare `src/shaders/` would also collide with the repo-root `shaders/` holding the Slang GPU source (`CMakeLists.txt:101`). `materials/` was considered and rejected: the shadow-mapping depth pass is an implementor but not a material. The interface lives in the folder with its implementors rather than beside its caller, so the shader family is self-contained and `TriangleRasterizer` reaches into one place for all of it. |
 | Flat shader naming | `FaceShader`, not `FlatShader` or `PrimShader` | Matches the user's jargon. `PrimShader` rejected — "primitive shader" is an existing, different GPU pipeline stage. The literature term is pinned in a header comment. |
 | Interim rasterizer name | `drawTriangleWithShader` for now | The shaded path is the *terminal* signature — textures, tangent space, shadow mapping and SSAO are all shader-internal or extra passes, and perspective-correct interpolation gets `w` for free from the clip positions. So it eventually deserves the plain `drawTriangle` name and today's flat-colour version deserves the qualifier. **That rename is deliberately deferred to the end of the lesson** rather than churning call sites mid-build. |
 
@@ -216,7 +216,7 @@ lesson.** (Specular *maps* belong to the next lesson, "More data!".)
 
 ## Modules
 
-### `rasterizer/AbstractShader.h`
+### `rasterizer/shaders/AbstractShader.h`
 
 **Responsibility:** the programmable boundary. Owns nothing; declares the two hooks the rasterizer
 calls. Header-only — it is pure interface.

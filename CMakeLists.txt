@@ -62,6 +62,7 @@ add_executable(TinyRendererSE
     src/rasterizer/Framebuffer.cpp
     src/rasterizer/LineDrawer.cpp
     src/rasterizer/TriangleRasterizer.cpp
+    src/rasterizer/ScreenSpace.cpp
     src/display/DisplayPipeline.cpp
     src/display/GraphicsPipeline.cpp
     src/io/ObjLoader.cpp

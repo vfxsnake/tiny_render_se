@@ -7,6 +7,7 @@
 #include "rasterizer/primitives/Triangle.h"
 #include "rasterizer/Framebuffer.h"
 #include "rasterizer/Color.h"
+#include "rasterizer/ScreenSpace.h"
 #include "math/Vec2.h"
 
 
