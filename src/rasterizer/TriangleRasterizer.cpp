@@ -6,6 +6,9 @@
 
 #include "Framebuffer.h"
 #include "ScreenSpace.h"
+#include "shaders/AbstractShader.h"
+#include "math/Projection.h"
+#include "math/Matrix4x4.h"
 
 
 void TriangleRasterizer::drawTriangleScanline(
@@ -183,6 +186,86 @@ void TriangleRasterizer::drawTriangle(const Triangle& triangle, Color color, Fra
                 {
                     frame_buffer.setPixel(x, y, color);
                     frame_buffer.setDepth(x, y, depth);
+                }
+            }
+        }
+    }
+}
+
+
+void TriangleRasterizer::drawTriangleWithShader(
+    const std::array<tinymath::Vec4f, 3>& clip_positions,
+    AbstractShader& shader,
+    Framebuffer& frame_buffer,
+    bool cull_back_faces
+)
+{
+    tinymath::Vec3f a_ndc = tinymath::toVec3(clip_positions[0]);
+    tinymath::Vec3f b_ndc = tinymath::toVec3(clip_positions[1]);
+    tinymath::Vec3f c_ndc = tinymath::toVec3(clip_positions[2]);
+    
+    tinymath::Matrix4x4 viewport_matrix = tinymath::viewport(frame_buffer.getWidth(), frame_buffer.getHeight());
+    tinymath::Vec4f a_screen = viewport_matrix * tinymath::toVec4(a_ndc);
+    tinymath::Vec4f b_screen = viewport_matrix * tinymath::toVec4(b_ndc);
+    tinymath::Vec4f c_screen = viewport_matrix * tinymath::toVec4(c_ndc);
+    
+    Triangle triangle{
+        {{a_screen.x, a_screen.y}, a_screen.z}, 
+        {{b_screen.x, b_screen.y}, b_screen.z}, 
+        {{c_screen.x, c_screen.y}, c_screen.z}
+    };
+    
+    float parallelogram_area = screen::twiceSignedArea(triangle);
+    
+    // prevents degenerated faces
+    if (parallelogram_area == 0.0f)
+    {
+        return;
+    }
+
+    if (cull_back_faces && parallelogram_area < 0.0f)
+    {
+        return;
+    }
+
+
+    screen::BBox bbox = screen::boundingBox(triangle);
+    
+    // clamping bbox to screen window boundaries. 
+    int x_min = static_cast<int>(std::max(0.0f, bbox.x_min));
+    int x_max = static_cast<int>(std::min(bbox.x_max, static_cast<float>(frame_buffer.getWidth() - 1)));
+    int y_min = static_cast<int>(std::max(0.0f, bbox.y_min));
+    int y_max = static_cast<int>(std::min(bbox.y_max, static_cast<float>(frame_buffer.getHeight() - 1)));
+    
+
+    for (int y = y_min; y <= y_max; y++)
+    {
+        for (int x = x_min; x <= x_max; x++)
+        {
+            tinymath::Vec2f current_position(static_cast<float>(x), static_cast<float>(y));
+            screen::BarycentricWeights weights = screen::barycentricWeights(
+                triangle, 
+                current_position, 
+                parallelogram_area
+            );
+            
+            if (weights.alpha >= 0 && weights.beta >= 0 && weights.gamma >= 0)
+            {
+                // depth test
+                float depth = triangle.a.depth * weights.alpha + 
+                              triangle.b.depth * weights.beta + 
+                              triangle.c.depth * weights.gamma;
+
+                if (frame_buffer.getDepth(x, y) < depth)
+                {
+                    Color color;
+                    if (!shader.fragment(weights, color))
+                    {
+                        continue;
+                    }
+                    frame_buffer.setPixel(x, y, color);
+                    frame_buffer.setDepth(x, y, depth);
+                    
                 }
             }
         }

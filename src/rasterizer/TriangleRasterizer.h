@@ -1,11 +1,14 @@
 #pragma once
 
+#include <array>
+
 #include "primitives/Triangle.h"
 #include "Color.h"
+#include "math/Vec4.h"
 
 // forward declarations
 class Framebuffer;
-
+class AbstractShader;
 
 namespace TriangleRasterizer
 {
@@ -25,5 +28,11 @@ namespace TriangleRasterizer
     */
     void drawTriangle(const Triangle& triangle, Color color, Framebuffer& frame_buffer, bool cull_back_faces = true);
 
+    void drawTriangleWithShader(
+        const std::array<tinymath::Vec4f, 3>& clip_positions,
+        AbstractShader& shader,
+        Framebuffer& frame_buffer,
+        bool cull_back_faces = true
+    );
 
 } // end of TriangleRasterizer name space
