@@ -2,7 +2,6 @@
 
 #include <string>
 
-#include "math/Vec3.h"
 #include "geometry/Mesh.h"
 
 namespace io
