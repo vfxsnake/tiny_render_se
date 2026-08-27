@@ -14,6 +14,7 @@
 #include "rasterizer/Color.h"
 #include "rasterizer/LineDrawer.h"
 #include "rasterizer/TriangleRasterizer.h"
+#include "geometry/Mesh.h"
 #include "utils/Timer.h"
 #include "io/ObjLoader.h"
 #include "math/Projection.h"
@@ -231,7 +232,7 @@ void Application::testDrawTriangleAlgorithms()
 void Application::testDrawWireFrame()
 {
     framebuffer_.clear(Color{0,0,0,0});
-    const io::Mesh geometry_mesh = io::loadObj("models/diablo3_pose.obj");
+    const Mesh geometry_mesh = io::loadObj("models/diablo3_pose.obj");
     Color red{255, 0,0, 255};
     Color green{0, 255, 0, 255};
     Color blue{0, 0, 255, 255};
@@ -270,7 +271,7 @@ void Application::testDrawWireFrame()
 void Application::testDrawMesh()
 {
     framebuffer_.clear(Color{0,0,0,0});
-    const io::Mesh geometry_mesh = io::loadObj("models/diablo3_pose.obj");
+    const Mesh geometry_mesh = io::loadObj("models/diablo3_pose.obj");
 
     // color randomization setup
     std::mt19937 gen(753);
@@ -337,7 +338,7 @@ void Application::testDrawMesh()
 void Application::testDrawMeshMatrix()
 {
     framebuffer_.clear(Color{0,0,0,0});
-    const io::Mesh geometry_mesh = io::loadObj("models/diablo3_pose.obj");
+    const Mesh geometry_mesh = io::loadObj("models/diablo3_pose.obj");
 
     // color randomization setup
     std::mt19937 gen(753);
@@ -406,7 +407,7 @@ void Application::testDrawMeshMatrix()
 void Application::testDrawMeshMatrixLightWorldSpace()
 {
     framebuffer_.clear(Color{0,0,0,0});
-    const io::Mesh geometry_mesh = io::loadObj("models/diablo3_pose.obj");
+    const Mesh geometry_mesh = io::loadObj("models/diablo3_pose.obj");
 
     std::vector<std::pair<Triangle, Color>> triangle_and_color_list;
 
@@ -467,7 +468,7 @@ void Application::testDrawMeshMatrixLightWorldSpace()
 void Application::testDrawMeshMatrixLightScreenSpace()
 {
     framebuffer_.clear(Color{0,0,0,0});
-    const io::Mesh geometry_mesh = io::loadObj("models/diablo3_pose.obj");
+    const Mesh geometry_mesh = io::loadObj("models/diablo3_pose.obj");
 
     std::vector<std::pair<Triangle, Color>> triangle_and_color_list;
 
@@ -529,7 +530,7 @@ void Application::testDrawMeshMatrixLightScreenSpace()
 void Application::testDrawMeshMatrixLightNormalsCheckIntegrity()
 {
     framebuffer_.clear(Color{0,0,0,0});
-    const io::Mesh geometry_mesh = io::loadObj("models/diablo3_pose.obj");
+    const Mesh geometry_mesh = io::loadObj("models/diablo3_pose.obj");
 
     if (geometry_mesh.vertices.size() != geometry_mesh.normals.size())
     {

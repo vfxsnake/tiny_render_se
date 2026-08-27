@@ -5,7 +5,7 @@
 #include <stdexcept>
 
 
-io::Mesh io::loadObj(std::string const& file_path)
+Mesh io::loadObj(std::string const& file_path)
 {
     std::ifstream file(file_path);
     if (!file)

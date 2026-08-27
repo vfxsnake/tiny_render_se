@@ -53,4 +53,6 @@ add_project_test(test_triangle_rasterizer
     ${CMAKE_SOURCE_DIR}/src/rasterizer/TriangleRasterizer.cpp
     ${CMAKE_SOURCE_DIR}/src/rasterizer/Framebuffer.cpp
     ${CMAKE_SOURCE_DIR}/src/rasterizer/ScreenSpace.cpp
+    ${CMAKE_SOURCE_DIR}/src/math/Projection.cpp
+
 )
