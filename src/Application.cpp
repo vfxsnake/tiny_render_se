@@ -14,6 +14,7 @@
 #include "rasterizer/Color.h"
 #include "rasterizer/LineDrawer.h"
 #include "rasterizer/TriangleRasterizer.h"
+#include "rasterizer/shaders/RandomShader.h"
 #include "geometry/Mesh.h"
 #include "utils/Timer.h"
 #include "io/ObjLoader.h"
@@ -48,7 +49,8 @@ void Application::run()
     // testDrawMesh();
     // testDrawMeshMatrixLightWorldSpace();
     // testDrawMeshMatrixLightScreenSpace();
-    testDrawMeshMatrixLightNormalsCheckIntegrity();
+    // testDrawMeshMatrixLightNormalsCheckIntegrity();
+    testDrawMeshRandomShader();
 
     mainLoop();
 }
@@ -558,7 +560,7 @@ void Application::testDrawMeshMatrixLightNormalsCheckIntegrity()
     // temp light direction
     tinymath::Vec3f light_direction = {0.0f, 0.0f, 1.0f};
 
-    for (int index = 0; index < geometry_mesh.faceIndices.size(); index++)
+    for (int index = 0; index < static_cast<int>(geometry_mesh.faceIndices.size()); index++)
     {
         auto face_indices = geometry_mesh.faceIndices[index];
         // auto nomal_indices = geometry_mesh.faceNormalIndices[index];
@@ -600,4 +602,43 @@ void Application::testDrawMeshMatrixLightNormalsCheckIntegrity()
         TriangleRasterizer::drawTriangle(triangle, color, framebuffer_);
     }
 
+}
+
+
+void Application::testDrawMeshRandomShader()
+{
+    framebuffer_.clear(Color{0,0,0,0});
+    const Mesh geometry_mesh = io::loadObj("models/diablo3_pose.obj");
+
+    if (geometry_mesh.vertices.size() != geometry_mesh.normals.size())
+    {
+        std::cout << "mismatch from vertices and normals count!!";
+        return;
+    }
+    
+    if (geometry_mesh.faceIndices.size() != geometry_mesh.faceNormalIndices.size())
+    {
+        std::cout << "mismatch from faceIndex and face NormalsIndices sizes!!!";
+        return;
+    }  
+
+    // transformation matrix
+    tinymath::Matrix4x4 transformation_matrix = tinymath::perspective(3.0f) *
+                                                tinymath::lookAt(
+                                                    {2.5f, 1.0f, 2.5f}, 
+                                                    {0.0f, 0.0f, 0.0f}, 
+                                                    {0.0f, 1.0f, 0.0f}
+                                                );
+    
+    RandomShader random_shader(geometry_mesh, transformation_matrix);
+
+    for (int index = 0; index < static_cast<int>(geometry_mesh.faceIndices.size()); index++)
+    {
+        std::array<tinymath::Vec4f,3> triangle_vertex; 
+        triangle_vertex[0] = random_shader.vertex(index, 0); 
+        triangle_vertex[1] = random_shader.vertex(index, 1); 
+        triangle_vertex[2] = random_shader.vertex(index, 2);
+        
+        TriangleRasterizer::drawTriangleWithShader(triangle_vertex, random_shader, framebuffer_, true);
+    }
 }
