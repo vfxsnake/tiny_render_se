@@ -193,7 +193,7 @@ void TriangleRasterizer::drawTriangle(const Triangle& triangle, Color color, Fra
 }
 
 
-void TriangleRasterizer::itdrawTriangleWithShader(
+void TriangleRasterizer::drawTriangleWithShader(
     const std::array<tinymath::Vec4f, 3>& clip_positions,
     AbstractShader& shader,
     Framebuffer& frame_buffer,
