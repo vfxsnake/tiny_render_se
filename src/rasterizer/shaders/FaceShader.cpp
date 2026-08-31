@@ -1,5 +1,7 @@
 #include "FaceShader.h"
 
+#include <algorithm>
+
 #include "geometry/Mesh.h"
 
 FaceShader::FaceShader(
@@ -27,14 +29,25 @@ tinymath::Vec4f FaceShader::vertex(int face_index, int vertex_index)
         tinymath::Vec3f segment_ac = vertexWorldPositions_[2] - vertexWorldPositions_[0];
 
         tinymath::Vec3f face_normal = tinymath::normalize(tinymath::cross(segment_ab, segment_ac));
-        faceIntensity_ = tinymath::dot(face_normal, lightDirection_);
+        faceIntensity_ = std::max(0.0f, tinymath::dot(face_normal, lightDirection_));
     }
+    
     tinymath::Vec4f transformed_vertex = transform_ * tinymath::toVec4(vertexWorldPositions_[vertex_index]);
     
     return transformed_vertex;
 }
 
-bool FaceShader::fragment(screen::BarycentricWeights weights, Color& out_color)
+bool FaceShader::fragment(screen::BarycentricWeights, Color& out_color)
 {
+    float red = static_cast<float>(baseColor_.r) * faceIntensity_;
+    float green = static_cast<float>(baseColor_.g) * faceIntensity_;
+    float blue = static_cast<float>(baseColor_.b) * faceIntensity_;
+    out_color = {
+        static_cast<uint8_t>(red),
+        static_cast<uint8_t>(green),
+        static_cast<uint8_t>(blue),
+        baseColor_.a
+    };
     
+    return true;
 }

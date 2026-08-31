@@ -58,6 +58,7 @@ private:
     void testDrawMeshMatrixLightScreenSpace();
     void testDrawMeshMatrixLightNormalsCheckIntegrity();
     void testDrawMeshRandomShader();
+    void testDrawMeshFaceShader();
 
     static constexpr uint32_t WIDTH = 800;
     static constexpr uint32_t HEIGHT = 800;
