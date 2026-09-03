@@ -65,6 +65,7 @@ add_executable(TinyRendererSE
     src/rasterizer/ScreenSpace.cpp
     src/rasterizer/shaders/RandomShader.cpp
     src/rasterizer/shaders/FaceShader.cpp
+    src/rasterizer/shaders/GouraudShader.cpp
     src/display/DisplayPipeline.cpp
     src/display/GraphicsPipeline.cpp
     src/io/ObjLoader.cpp
