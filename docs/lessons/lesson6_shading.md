@@ -22,7 +22,10 @@ Three shaders render the same mesh through the same rasterizer call:
   for pixel. If it differs, the plumbing is wrong, not the shading.
 - `GouraudShader` shades from the file's `vn` normals with a per-vertex intensity blended across
   the triangle — visibly smoother on the silhouette-adjacent faces.
-- `PhongShader` interpolates the *normal* instead of the intensity and adds ambient + specular.
+- `LambertShader` (step 6a) interpolates the *normal* instead of the intensity and lights per
+  pixel, still pure Lambert. Against Gouraud the difference is deliberately subtle: the terminator
+  moves, because Gouraud clamps each corner before blending and so leaks light past it.
+- `PhongShader` (step 6b) keeps 6a's rate and swaps the model for ambient + diffuse + specular.
   With the specular exponent turned up, a highlight lands mid-triangle under Phong and **vanishes
   entirely** under Gouraud. That disappearing highlight is the lesson's payoff and the reason the
   scope runs this far.
@@ -86,7 +89,7 @@ conversation**, because it is the jargon already in the user's head.
 | per-corner (`GouraudShader`) | `faceVarying` | **vertex** attribute | one value per face-corner, interpolated across the triangle |
 | per-point | `varying` / `vertex` | **point** attribute | one value per shared point |
 | whole mesh | `constant` | **detail** attribute | one value for everything |
-| per-pixel (`PhongShader`) | — | — | no equivalent — this is a *shading rate*, not an attribute class |
+| per-pixel (`LambertShader`, `PhongShader`) | — | — | no equivalent — this is a *shading rate*, not an attribute class |
 
 **Three traps, in order of how likely they are to bite:**
 
@@ -210,6 +213,8 @@ lesson.** (Specular *maps* belong to the next lesson, "More data!".)
 | `AbstractShader` ownership | Abstract base class with two pure virtuals; shaders are stack objects at the call site | Three implementors exist by the end of the lesson, so the interface is earned rather than premature. |
 | Shader file location | `src/rasterizer/shaders/` — the `AbstractShader` interface included | The shaders speak the rasterizer's vocabulary (`screen::BarycentricWeights`, `Color`) and the rasterizer calls them — one component, not two. A bare `src/shaders/` would also collide with the repo-root `shaders/` holding the Slang GPU source (`CMakeLists.txt:101`). `materials/` was considered and rejected: the shadow-mapping depth pass is an implementor but not a material. The interface lives in the folder with its implementors rather than beside its caller, so the shader family is self-contained and `TriangleRasterizer` reaches into one place for all of it. |
 | Flat shader naming | `FaceShader`, not `FlatShader` or `PrimShader` | Matches the user's jargon. `PrimShader` rejected — "primitive shader" is an existing, different GPU pipeline stage. The literature term is pinned in a header comment. |
+| Step 6 split into 6a / 6b | 6a `LambertShader` (pixel rate, Lambert only), 6b `PhongShader` (the reflection model) | A single `PhongShader` moved **two** axes at once — the rate to per-pixel *and* the model to ambient + diffuse + specular — where every earlier step moved exactly one, which is what kept each A/B readable. Two classes rather than an edit in place, so 6a survives as a standing rung. |
+| 6a named `LambertShader`, not `PhongShader` | `LambertShader` | Objection raised and overruled: Face and Gouraud are also Lambert, so the name states the property all three share. The user's counter won — Face and Gouraud are *teaching rungs for a rate*, not materials; 6a is the first **proper material** (lighting evaluated where a real shader evaluates it, and the one that grows a texture in Lesson 7), so it is named for the material rather than the rate. Correction recorded against the premise: Gouraud is not a *wrong* implementation — hardware shaded that way for years — it is superseded by what it cannot represent, which is 6b's argument. |
 | Interim rasterizer name | `drawTriangleWithShader` for now | The shaded path is the *terminal* signature — textures, tangent space, shadow mapping and SSAO are all shader-internal or extra passes, and perspective-correct interpolation gets `w` for free from the clip positions. So it eventually deserves the plain `drawTriangle` name and today's flat-colour version deserves the qualifier. **That rename is deliberately deferred to the end of the lesson** rather than churning call sites mid-build. |
 
 ---
@@ -260,7 +265,7 @@ triangle individually visible, so a broken divide or viewport shows immediately 
 misplaced facets. **The target image is already known** — it is the confetti render from Lesson 3,
 made before the z-buffer existed.
 
-**Uniforms:** `const io::Mesh* mesh_`, `tinymath::Matrix4x4 transform_`.
+**Uniforms:** `const Mesh* mesh_`, `tinymath::Matrix4x4 transform_`.
 **Varyings:** `Color faceColor_`.
 
 `vertex()` does the full transform — the half being tested — and picks the face's colour on the
@@ -277,8 +282,8 @@ pixel, and random colours would destroy that comparison. Two shaders, one axis c
 
 **Responsibility:** reproduce the current flat picture through the new path. The control in the A/B.
 
-**Uniforms:** `const io::Mesh* mesh_`, `tinymath::Matrix4x4 transform_`, `tinymath::Vec3f lightDirection_`, `Color baseColor_`.
-**Varyings:** `tinymath::Vec3f varyingWorldPosition_[3]`, `float faceIntensity_`.
+**Uniforms:** `const Mesh* mesh_`, `tinymath::Matrix4x4 transform_`, `tinymath::Vec3f lightDirection_`, `Color baseColor_`.
+**Varyings:** `std::array<tinymath::Vec3f, 3> vertexWorldPositions_`, `float faceIntensity_`.
 
 `vertex()` stores the world position of each corner; on the third call it computes
 `normalize(cross(b - a, c - a))` and `faceIntensity_ = max(0, n·l)`. `fragment()` ignores the
@@ -287,19 +292,44 @@ weights entirely and scales `baseColor_`.
 ### `rasterizer/shaders/GouraudShader.h/.cpp`
 
 **Uniforms:** same as flat.
-**Varyings:** `float varyingIntensity_[3]`.
+**Varyings:** `std::array<float, 3> varyingIntensities_`.
 
 `vertex()` fetches the corner's normal via `faceNormalIndices` and stores
 `max(0, n·l)`. `fragment()` blends the three floats with the weights and scales `baseColor_`.
 
+### `rasterizer/shaders/LambertShader.h/.cpp`
+
+> **Step 6a — the rate axis only.** Gouraud's model (pure Lambert), evaluated per pixel instead of
+> per corner. Named for the material, not the rate: this is the first shader in the series that is
+> a material rather than a rung demonstrating where lighting can be evaluated, and it is the one
+> that grows a texture in Lesson 7.
+
+**Uniforms:** same as flat — `const Mesh* mesh_`, `tinymath::Matrix4x4 transform_`,
+`tinymath::Vec3f lightDirection_`, `Color baseColor_`.
+**Varyings:** `std::array<tinymath::Vec3f, 3> varyingNormals_`.
+
+`vertex()` only carries the corner's normal through — no lighting happens there any more, which is
+the whole of the change. `fragment()` blends the three normals with the weights, **re-normalizes**
+(a barycentric blend of unit vectors lands inside the unit sphere, so skipping this sags the
+intensity toward triangle interiors and darkens the whole surface), then `max(0, n.l)` and the same
+colour scale as Gouraud.
+
+**The A/B against Gouraud shows two distinct differences, and separating them is the point of the
+step:** the overall darkening is the missing re-normalize and disappears when it is added; the
+larger shadow areas are *not* a bug and survive the fix — Gouraud clamps `max(0, .)` per corner and
+then blends, so a triangle straddling the terminator blends a clamped `0` with a positive value and
+stays lit. Clamping once, at the end, puts the terminator where it belongs.
+
 ### `rasterizer/shaders/PhongShader.h/.cpp`
 
-**Uniforms:** flat's, plus `tinymath::Vec3f viewDirection_`, `float ambient_`, `float shininess_`.
-**Varyings:** `tinymath::Vec3f varyingNormal_[3]`.
+> **Step 6b — the model axis only.** 6a's rate, with Lambert swapped for the Phong reflection
+> model. This is where the payoff is visible, and 6a supplies the picture to hold it against.
 
-`vertex()` stores the raw normal. `fragment()` blends the three normals, **re-normalizes** (a
-barycentric blend of unit vectors is not unit), reflects the light about it, and sums ambient +
-diffuse + specular.
+**Uniforms:** 6a's, plus `tinymath::Vec3f viewDirection_`, `float ambient_`, `float shininess_`.
+**Varyings:** unchanged from 6a — `std::array<tinymath::Vec3f, 3> varyingNormals_`.
+
+`fragment()` blends and re-normalizes exactly as 6a does, then reflects the light about the normal
+and sums ambient + diffuse + specular.
 
 ### `Application` — call sites
 
@@ -320,7 +350,7 @@ product rather than reading the file normals its name claims. Verification scaff
 - A varying at the centroid (`{1/3, 1/3, 1/3}`) returns the mean of the three.
 - `FaceShader` and a hand-computed `max(0, n·l)` agree for a known triangle and light.
 - A blended normal from three differing unit normals is not unit length before re-normalization —
-  pins the reason `PhongShader::fragment` normalizes.
+  pins the reason `LambertShader::fragment` normalizes.
 - `fragment()` returning `false` leaves both the colour and the depth buffer untouched.
 
 ---
@@ -363,6 +393,7 @@ interrupted:
 ## Open questions
 
 - ~~Whether to add a `RandomShader` rung~~ — **decided: yes, step 3.5.** See its module section.
-- **Whether `GouraudShader` / `PhongShader` should also be renamed to rate-based names** (vertex /
-  pixel). Left as-is for now: unlike "flat", those two are eponyms rather than descriptions, so they
-  carry less ambiguity to correct.
+- ~~**Whether `GouraudShader` / `PhongShader` should also be renamed to rate-based names**~~ —
+  **decided at step 6: no renames.** The existing shaders keep their eponyms, and the pixel-rate
+  Lambert step is named for its material (`LambertShader`) rather than its rate. Each shader gets a
+  class doc comment instead, stating its rate, its purpose, and what it cannot represent.

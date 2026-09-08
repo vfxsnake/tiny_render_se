@@ -10,6 +10,18 @@
 // forward declaration
 struct Mesh;
 
+/*
+    Primitive-rate rung: one intensity per face, so the mesh renders faceted.
+
+    The normal is computed here rather than read from the file's vn. This rung
+    exists to show flat shading, and the cross product of the triangle's own
+    edges is the only normal guaranteed to be constant across the primitive; the
+    vn are per-corner and would defeat the point. GouraudShader is where they
+    start being used.
+
+    Ordering contract: the normal needs all three corners, so it is computed on
+    corner 2 and the three vertex() calls must arrive in index order.
+*/
 class FaceShader : public AbstractShader
 {
 public:

@@ -10,6 +10,21 @@
 // forward declaration
 struct Mesh;
 
+/*
+    Vertex-rate rung: lighting is evaluated in vertex(), once per corner from the
+    file's vn, and the three resulting intensities are blended across the
+    triangle. Faceting dissolves into a gradient while genuine hard edges stay
+    hard, because a hard edge carries a separate vn per face.
+
+    This is not a wrong implementation - hardware shaded this way for years. It
+    is superseded by what it cannot represent: an effect that peaks in the middle
+    of a triangle is evaluated at no corner, so it does not exist at all. A
+    specular highlight landing mid-face is the case that forces per-pixel
+    lighting.
+
+    No ordering contract - each corner writes only its own slot, so the vertex()
+    calls may arrive in any order.
+*/
 class GouraudShader : public AbstractShader
 {
 public:
