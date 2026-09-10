@@ -22,6 +22,7 @@ public:
         tinymath::Vec3f light_direction,
         tinymath::Vec3f view_direction,
         Color base_color,
+        Color specular_color,
         float ambient,
         float shininess
     );
@@ -36,6 +37,7 @@ private:
     tinymath::Vec3f viewDirection_;
     
     Color baseColor_;
+    Color specularColor_;
     float ambient_;
     float shininess_;
     std::array<tinymath::Vec3f, 3> varyingNormals_ = {};

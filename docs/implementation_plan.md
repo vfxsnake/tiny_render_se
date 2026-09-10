@@ -207,7 +207,7 @@ Cel-shaded head.
 
 ---
 
-## Phase 2 — GPU Compute Port (future)
+## GPU Compute Port — split into a separate project
 
 After all CPU lessons are complete, port the rasterizer to compute shaders using the CPU implementation as the reference. The `Framebuffer` boundary makes this a clean swap — the display pipeline does not change.
 

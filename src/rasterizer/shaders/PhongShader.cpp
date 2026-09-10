@@ -1,6 +1,7 @@
 #include "PhongShader.h"
 
 #include <algorithm>
+#include <cmath>
 
 #include "geometry/Mesh.h"
 
@@ -10,6 +11,7 @@ PhongShader::PhongShader(
         tinymath::Vec3f light_direction,
         tinymath::Vec3f view_direction,
         Color base_color,
+        Color specular_color,
         float ambient,
         float shininess
 ) :
@@ -18,6 +20,7 @@ PhongShader::PhongShader(
     lightDirection_(tinymath::normalize(light_direction)),
     viewDirection_(tinymath::normalize(view_direction)),
     baseColor_(base_color),
+    specularColor_(specular_color),
     ambient_(ambient),
     shininess_(shininess)
 {
@@ -47,19 +50,37 @@ bool PhongShader::fragment(screen::BarycentricWeights weights, Color& out_color)
         varyingNormals_[2] * weights.gamma
     );
 
-    float diffuse = std::max(0.0f, tinymath::dot(current_normal, lightDirection_));
-    float red = static_cast<float>(baseColor_.r) * diffuse;
-    float green = static_cast<float>(baseColor_.g) * diffuse;
-    float blue = static_cast<float>(baseColor_.b) * diffuse;
+    // calculate reflection for learning purposes the formula r = 2(N*L)N - L is decomposed into the steps used to deduce it.
+    /* First we project the light direction vector into the normal, using the N * L we get the signed projection length,
+       using that length we scale the Normal vector. */
+    float light_normal_incident_ratio = tinymath::dot(current_normal, lightDirection_);
+    tinymath::Vec3f projected_over_normal = current_normal * light_normal_incident_ratio;
 
-    
+    /* Then with the scaled normal, we substract it to the light direction, to eliminate or flatten the 
+        y component, creating a vector that runs over the base of the normal. */
+    tinymath::Vec3f surface_level_light_direction = lightDirection_ - projected_over_normal;
 
+    /* Finally, we compute the reflection vector substracting the flat vector from the scaled normal,Note: r needs no normalize  */
+    tinymath::Vec3f reflection_vector =  projected_over_normal - surface_level_light_direction;
 
+    // diffuse component
+    float diffuse = std::max(0.0f, light_normal_incident_ratio);
+        
+    // specular component
+    float specular = std::pow(std::max(0.0f, tinymath::dot(reflection_vector, viewDirection_)), shininess_);
+
+    float red = static_cast<float>(baseColor_.r);
+    float green = static_cast<float>(baseColor_.g);
+    float blue = static_cast<float>(baseColor_.b);
+
+    float specular_red = static_cast<float>(specularColor_.r);
+    float specular_green = static_cast<float>(specularColor_.g);
+    float specular_blue = static_cast<float>(specularColor_.b);
     
     out_color = {
-        static_cast<uint8_t>(red),
-        static_cast<uint8_t>(green),
-        static_cast<uint8_t>(blue),
+        static_cast<uint8_t>(std::min(red * diffuse + specular_red * specular + red * ambient_, 255.0f)),
+        static_cast<uint8_t>(std::min(green * diffuse + specular_green * specular + green * ambient_, 255.0f)),
+        static_cast<uint8_t>(std::min(blue * diffuse + specular_blue * specular + blue * ambient_, 255.0f)),
         baseColor_.a
     };
     
