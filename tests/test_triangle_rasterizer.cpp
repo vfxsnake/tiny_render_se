@@ -93,7 +93,7 @@ TEST_CASE("both rungs fill the interior and leave the exterior clear", "[triangl
 
 // The >= 0 boundary convention is exact for the shipped rung (integer edge
 // functions), so we pin it there: a pixel sitting exactly on an edge is drawn.
-TEST_CASE("drawTriangle includes edge pixels (>= 0 convention)", "[triangle]")
+TEST_CASE("drawTriangle2D includes edge pixels (>= 0 convention)", "[triangle]")
 {
     Framebuffer fb(16, 16);
     TriangleRasterizer::drawTriangle2D(TRI, WHITE, fb);
@@ -313,7 +313,7 @@ TEST_CASE("the all-weights >= 0 coverage test holds for both windings", "[screen
 }
 
 
-TEST_CASE("drawTriangle draws nothing for a degenerate (collinear) triangle", "[triangle][depth]")
+TEST_CASE("drawTriangleSolidColor draws nothing for a degenerate (collinear) triangle", "[triangle][depth]")
 {
     const Triangle collinear{
         {{2.0f, 2.0f}, 0.5f},
@@ -322,17 +322,17 @@ TEST_CASE("drawTriangle draws nothing for a degenerate (collinear) triangle", "[
     };
 
     Framebuffer fb(16, 16);
-    TriangleRasterizer::drawTriangle(collinear, WHITE, fb, false);
+    TriangleRasterizer::drawTriangleSolidColor(collinear, WHITE, fb, false);
 
     REQUIRE(countSetPixels(fb) == 0);
 }
 
 
-TEST_CASE("drawTriangle interpolates depth across the triangle", "[depth]")
+TEST_CASE("drawTriangleSolidColor interpolates depth across the triangle", "[depth]")
 {
     // Near at vertex a (depth 1.0 = near), far along the opposite edge.
     Framebuffer fb(16, 16);
-    TriangleRasterizer::drawTriangle(frontFacing(1.0f, 0.0f, 0.0f), WHITE, fb);
+    TriangleRasterizer::drawTriangleSolidColor(frontFacing(1.0f, 0.0f, 0.0f), WHITE, fb);
 
     // At vertex a the weights are (1, 0, 0), so the depth is a's depth exactly.
     REQUIRE(fb.getDepth(2, 2) == Catch::Approx(1.0f));
@@ -355,8 +355,8 @@ TEST_CASE("the nearer triangle wins regardless of draw order", "[depth]")
     SECTION("far drawn first, near second")
     {
         Framebuffer fb(16, 16);
-        TriangleRasterizer::drawTriangle(far_tri, BLUE, fb);
-        TriangleRasterizer::drawTriangle(near_tri, RED, fb);
+        TriangleRasterizer::drawTriangleSolidColor(far_tri, BLUE, fb);
+        TriangleRasterizer::drawTriangleSolidColor(near_tri, RED, fb);
 
         REQUIRE(fb.getPixel(5, 5) == RED);
         REQUIRE(fb.getDepth(5, 5) == Catch::Approx(0.75f));
@@ -365,8 +365,8 @@ TEST_CASE("the nearer triangle wins regardless of draw order", "[depth]")
     SECTION("near drawn first, far second")
     {
         Framebuffer fb(16, 16);
-        TriangleRasterizer::drawTriangle(near_tri, RED, fb);
-        TriangleRasterizer::drawTriangle(far_tri, BLUE, fb);
+        TriangleRasterizer::drawTriangleSolidColor(near_tri, RED, fb);
+        TriangleRasterizer::drawTriangleSolidColor(far_tri, BLUE, fb);
 
         REQUIRE(fb.getPixel(5, 5) == RED);
         REQUIRE(fb.getDepth(5, 5) == Catch::Approx(0.75f));
@@ -377,8 +377,8 @@ TEST_CASE("the nearer triangle wins regardless of draw order", "[depth]")
 TEST_CASE("a fragment behind the z-buffer leaves both the colour and the depth alone", "[depth]")
 {
     Framebuffer fb(16, 16);
-    TriangleRasterizer::drawTriangle(frontFacing(0.75f, 0.75f, 0.75f), RED, fb);
-    TriangleRasterizer::drawTriangle(frontFacing(0.25f, 0.25f, 0.25f), BLUE, fb);
+    TriangleRasterizer::drawTriangleSolidColor(frontFacing(0.75f, 0.75f, 0.75f), RED, fb);
+    TriangleRasterizer::drawTriangleSolidColor(frontFacing(0.25f, 0.25f, 0.25f), BLUE, fb);
 
     REQUIRE(fb.getPixel(5, 5) == RED);
     REQUIRE(fb.getDepth(5, 5) == Catch::Approx(0.75f));
@@ -390,21 +390,21 @@ TEST_CASE("back-face culling drops back-facing triangles and keeps front-facing 
     SECTION("a back-facing triangle is dropped when culling is on")
     {
         Framebuffer fb(16, 16);
-        TriangleRasterizer::drawTriangle(backFacing(0.5f, 0.5f, 0.5f), WHITE, fb, true);
+        TriangleRasterizer::drawTriangleSolidColor(backFacing(0.5f, 0.5f, 0.5f), WHITE, fb, true);
         REQUIRE(countSetPixels(fb) == 0);
     }
 
     SECTION("the same triangle is drawn when culling is off")
     {
         Framebuffer fb(16, 16);
-        TriangleRasterizer::drawTriangle(backFacing(0.5f, 0.5f, 0.5f), WHITE, fb, false);
+        TriangleRasterizer::drawTriangleSolidColor(backFacing(0.5f, 0.5f, 0.5f), WHITE, fb, false);
         REQUIRE(countSetPixels(fb) > 0);
     }
 
     SECTION("a front-facing triangle survives culling")
     {
         Framebuffer fb(16, 16);
-        TriangleRasterizer::drawTriangle(frontFacing(0.5f, 0.5f, 0.5f), WHITE, fb, true);
+        TriangleRasterizer::drawTriangleSolidColor(frontFacing(0.5f, 0.5f, 0.5f), WHITE, fb, true);
         REQUIRE(countSetPixels(fb) > 0);
     }
 }
@@ -422,11 +422,11 @@ TEST_CASE("culling does not change the image of front-facing geometry", "[cullin
     const Triangle far_tri = frontFacing(0.25f, 0.25f, 0.25f);
     const Triangle near_tri = frontFacing(0.75f, 0.75f, 0.75f);
 
-    TriangleRasterizer::drawTriangle(far_tri, BLUE, culled, true);
-    TriangleRasterizer::drawTriangle(near_tri, RED, culled, true);
+    TriangleRasterizer::drawTriangleSolidColor(far_tri, BLUE, culled, true);
+    TriangleRasterizer::drawTriangleSolidColor(near_tri, RED, culled, true);
 
-    TriangleRasterizer::drawTriangle(far_tri, BLUE, unculled, false);
-    TriangleRasterizer::drawTriangle(near_tri, RED, unculled, false);
+    TriangleRasterizer::drawTriangleSolidColor(far_tri, BLUE, unculled, false);
+    TriangleRasterizer::drawTriangleSolidColor(near_tri, RED, unculled, false);
 
     REQUIRE(sameImage(culled, unculled));
 }

@@ -2,11 +2,12 @@
 
 **Source:** https://haqr.eu/tinyrenderer/shading/
 
-> **Status: in progress (started 2026-08-19, doc written 2026-08-24).**
-> Written three sessions late — the spike ran first (flat world-space lighting, the screen-space
-> normal break, the `vn` loader extension) and this document records what those spikes earned as
-> well as the design still to be built. Everything in *Prior findings* already happened; everything
-> in *Modules* is still ahead.
+> **Status: DONE (started 2026-08-19, doc written 2026-08-24, closed 2026-09-11).**
+> Six shaders — `RandomShader`, `FaceShader`, `GouraudShader`, `LambertShader`, `PhongShader`,
+> `BlinnPhongShader` — render diablo through one `drawTriangle` call, each A/B'd on screen against
+> its predecessor. `tests/test_shading.cpp` passes. The five `ObjLoader` findings moved to Lesson 7.
+> The document was written three sessions late — the spike ran first (flat world-space lighting,
+> the screen-space normal break, the `vn` loader extension) — so *Prior findings* is retroactive.
 
 ## Goal
 
@@ -16,7 +17,7 @@ to climb flat → Gouraud → Phong with all three rungs alive side by side.
 
 ## Exit condition
 
-Three shaders render the same mesh through the same rasterizer call:
+Every shader renders the same mesh through the same rasterizer call:
 
 - `FaceShader` reproduces the picture `testDrawMeshMatrixLightWorldSpace()` already produces, pixel
   for pixel. If it differs, the plumbing is wrong, not the shading.
@@ -29,6 +30,10 @@ Three shaders render the same mesh through the same rasterizer call:
   With the specular exponent turned up, a highlight lands mid-triangle under Phong and **vanishes
   entirely** under Gouraud. That disappearing highlight is the lesson's payoff and the reason the
   scope runs this far.
+- `BlinnPhongShader` (step 6c) keeps 6b and swaps only the specular term: `max(0, n·h)ᵉ` with the
+  half vector instead of `max(0, r·v)ᵉ`. Two predictions were registered before writing it and both
+  confirmed on screen: at equal exponent its highlight is wider, matching Phong's at ~4× the exponent
+  (800 vs 200); at grazing angles it stretches into a streak where Phong's stays round.
 
 `RasterVertex` is unchanged at the end of the lesson — no varying was ever added to it.
 
@@ -89,7 +94,7 @@ conversation**, because it is the jargon already in the user's head.
 | per-corner (`GouraudShader`) | `faceVarying` | **vertex** attribute | one value per face-corner, interpolated across the triangle |
 | per-point | `varying` / `vertex` | **point** attribute | one value per shared point |
 | whole mesh | `constant` | **detail** attribute | one value for everything |
-| per-pixel (`LambertShader`, `PhongShader`) | — | — | no equivalent — this is a *shading rate*, not an attribute class |
+| per-pixel (`LambertShader`, `PhongShader`, `BlinnPhongShader`) | — | — | no equivalent — this is a *shading rate*, not an attribute class |
 
 **Three traps, in order of how likely they are to bite:**
 
@@ -195,6 +200,31 @@ lesson.** (Specular *maps* belong to the next lesson, "More data!".)
   the viewer. The exponent `e` controls tightness: low is a broad sheen, high is a small hard dot.
   This is the only term that moves when the camera moves.
 
+### The half vector (Blinn-Phong)
+
+`h = normalize(l + v)`. Because `l` and `v` are both unit length, `l + v` is the diagonal of a
+**rhombus**, and a rhombus's diagonal bisects the angle between its sides — so `h` sits exactly
+halfway between the light and the eye. Normalizing `l` and `v` first is what makes that true;
+otherwise the sum leans toward the longer vector.
+
+Physically, `h` is **the normal a perfect mirror would need to reflect the light straight into the
+eye.** So `n·h` asks *how close is this surface to that ideal mirror orientation*, where Phong's
+`r·v` asks *how close does the reflected ray pass to the eye*. Both peak at exactly 1 in the same
+configuration — `n = h` exactly when `r = v`. What differs is the falloff:
+
+- **Exponents do not map 1:1.** When `n`, `l` and `v` are coplanar, the `n`–`h` angle is exactly half
+  the `r`–`v` angle (approximately so out of that plane). A cosine lobe's width goes like 1/√e, so
+  halving the angle takes **4×** the exponent to match. Comparing at equal numbers wrongly reads as
+  "Blinn is blurrier" — it is a units difference.
+- **The lobe shape differs at grazing angles.** Phong's lobe is a cone around `r`, so its highlight
+  stays round from any angle. Blinn's is a cone around `n` in half-vector space: at grazing angles,
+  moving `v` out of the plane of `l` and `n` changes `h` far less than moving it within that plane,
+  so the highlight stretches along that plane. That streak — a wet road at sunset — is the physically
+  correct one.
+
+Blinn-Phong is just as empirical as Phong, but `(n·h)ᵉ` turns out to be a close fit to the Beckmann
+microfacet distribution, which is why it outlived `r·v` as the fixed-function default.
+
 ---
 
 ## Design decisions
@@ -207,7 +237,7 @@ lesson.** (Specular *maps* belong to the next lesson, "More data!".)
 | Where the varying lives | Shader member, not `RasterVertex` | See *Why varyings live on the shader*. The rasterizer stays ignorant of shading. |
 | `vertex()` return space | **Clip space** (`Vec4f`, undivided) — the rasterizer does the divide and the viewport | Matches OpenGL/Vulkan exactly, and puts the divide where clipping will eventually have to live. The rasterizer already knows the framebuffer dimensions, which is what `viewport` needs. |
 | Viewport removal from the app matrix | `Application` composes `perspective · lookAt` only | Follows from the above. **Numerically a no-op**: `viewport` is affine and does not touch `w`, so applying it before or after the `w` divide gives the same result. Pure refactor, no picture change — which is what makes `FaceShader` a valid A/B. |
-| New rasterizer entry point | `drawTriangleWithShader`, added **beside** `drawTriangle` | Keep-superseded-rungs: the flat-colour path stays callable as a standing comparison and as a benchmark baseline. |
+| New rasterizer entry point | `drawTriangleWithShader`, added **beside** `drawTriangle` (both renamed at the close, see *Rasterizer names*) | Keep-superseded-rungs: the flat-colour path stays callable as a standing comparison and as a benchmark baseline. |
 | `RandomShader` rung | Kept, as step 3.5 before `FaceShader` | Isolates the plumbing from the shading: five suspects instead of six on a wrong picture, and the correct image is already known from Lesson 3. A constant/unlit model at primitive rate — the control that changes one axis at a time. |
 | Lesson scope | Ends at Phong + specular | The source lesson runs that far and every term is uniform-only. Gouraud vs Phong is unpersuasive under pure diffuse; the vanishing highlight needs the specular term. |
 | `AbstractShader` ownership | Abstract base class with two pure virtuals; shaders are stack objects at the call site | Three implementors exist by the end of the lesson, so the interface is earned rather than premature. |
@@ -215,7 +245,10 @@ lesson.** (Specular *maps* belong to the next lesson, "More data!".)
 | Flat shader naming | `FaceShader`, not `FlatShader` or `PrimShader` | Matches the user's jargon. `PrimShader` rejected — "primitive shader" is an existing, different GPU pipeline stage. The literature term is pinned in a header comment. |
 | Step 6 split into 6a / 6b | 6a `LambertShader` (pixel rate, Lambert only), 6b `PhongShader` (the reflection model) | A single `PhongShader` moved **two** axes at once — the rate to per-pixel *and* the model to ambient + diffuse + specular — where every earlier step moved exactly one, which is what kept each A/B readable. Two classes rather than an edit in place, so 6a survives as a standing rung. |
 | 6a named `LambertShader`, not `PhongShader` | `LambertShader` | Objection raised and overruled: Face and Gouraud are also Lambert, so the name states the property all three share. The user's counter won — Face and Gouraud are *teaching rungs for a rate*, not materials; 6a is the first **proper material** (lighting evaluated where a real shader evaluates it, and the one that grows a texture in Lesson 7), so it is named for the material rather than the rate. Correction recorded against the premise: Gouraud is not a *wrong* implementation — hardware shaded that way for years — it is superseded by what it cannot represent, which is 6b's argument. |
-| Interim rasterizer name | `drawTriangleWithShader` for now | The shaded path is the *terminal* signature — textures, tangent space, shadow mapping and SSAO are all shader-internal or extra passes, and perspective-correct interpolation gets `w` for free from the clip positions. So it eventually deserves the plain `drawTriangle` name and today's flat-colour version deserves the qualifier. **That rename is deliberately deferred to the end of the lesson** rather than churning call sites mid-build. |
+| Step 6c as its own class | `BlinnPhongShader`, a copy of `PhongShader` with only the specular term changed | One axis again — same rate, varyings, uniforms, ambient and diffuse — so 6b survives as a standing A/B. Both registered predictions (exponent scale, grazing shape) could only be checked against it. |
+| Where the half vector is computed | In `fragment()`, per pixel | `l` and `v` are both uniforms, so `h` is constant per draw and the constructor was the obvious hoist (a `sqrt` and three divides saved per pixel). **User's call to keep it in `fragment()`**: the whole Blinn-Phong model reads in one place, and it is where `h` has to live anyway once the view direction goes per-pixel (`normalize(eye - world_position)`). Known cost, not measured. |
+| Half-vector variable name | `view_light_half_vector` | `mirror_normal` rejected — reads as the surface normal being mirrored. `max_reflection_vector` rejected — `PhongShader` already has a real `reflection_vector`, compared against `v`, while `h` is compared against `n`, so the name would read as a variant of `r`. `highlight_normal` was offered; the user kept the name that states what it is built from and matches the literature term. |
+| Rasterizer names | ~~`drawTriangleWithShader` for now~~ → at the close of the lesson the shaded path became **`drawTriangle`** and the flat-colour path **`drawTriangleSolidColor`** | `SolidColor` rather than `Flat`, because *flat* names a shading rate in this document's vocabulary (`FaceShader`), and the constant-colour path is not a shader at all. The shaded path is the *terminal* signature — textures, tangent space, shadow mapping and SSAO are all shader-internal or extra passes, and perspective-correct interpolation gets `w` for free from the clip positions. So it eventually deserves the plain `drawTriangle` name and today's flat-colour version deserves the qualifier. The rename was deferred to the end of the lesson rather than churning call sites mid-build, and done there. |
 
 ---
 
@@ -241,12 +274,14 @@ calls. Header-only — it is pure interface.
 because it is the only place that knows the framebuffer's dimensions.
 
 **API:**
-- `void drawTriangleWithShader(const std::array<tinymath::Vec4f, 3>& clip_positions, AbstractShader& shader, Framebuffer& frame_buffer, bool cull_back_faces = true)`
+- `void drawTriangle(const std::array<tinymath::Vec4f, 3>& clip_positions, AbstractShader& shader, Framebuffer& frame_buffer, bool cull_back_faces = true)`
+  (built as `drawTriangleWithShader`, renamed at the close of the lesson)
   — divides each clip position by `w`, applies `viewport(fb.getWidth(), fb.getHeight())`, builds a
   screen-space `Triangle` internally, then runs the existing body: `twiceSignedArea` → cull →
   `boundingBox` → per-pixel `barycentricWeights` → depth test → `shader.fragment(...)` → `setPixel`.
 
-The existing `drawTriangle(const Triangle&, Color, ...)` is untouched and stays in use.
+The flat-colour `drawTriangle(const Triangle&, Color, ...)` stays in use, renamed
+`drawTriangleSolidColor` — the standing A/B and benchmark baseline for the shaded path.
 
 ### `rasterizer/shaders/RandomShader.h/.cpp`
 
@@ -325,11 +360,40 @@ stays lit. Clamping once, at the end, puts the terminator where it belongs.
 > **Step 6b — the model axis only.** 6a's rate, with Lambert swapped for the Phong reflection
 > model. This is where the payoff is visible, and 6a supplies the picture to hold it against.
 
-**Uniforms:** 6a's, plus `tinymath::Vec3f viewDirection_`, `float ambient_`, `float shininess_`.
+**Uniforms:** 6a's, plus `tinymath::Vec3f viewDirection_`, `Color specularColor_`, `float ambient_`,
+`float shininess_`. `specularColor_` exists because `specular` is a bare 0–1 ratio while the base
+colour is on 0–255 — it gives the term units. White on a grey base is a dielectric; tinting the
+specular by the base colour is what metals do, and is a one-argument change at the call site.
 **Varyings:** unchanged from 6a — `std::array<tinymath::Vec3f, 3> varyingNormals_`.
 
 `fragment()` blends and re-normalizes exactly as 6a does, then reflects the light about the normal
 and sums ambient + diffuse + specular.
+
+### `rasterizer/shaders/BlinnPhongShader.h/.cpp`
+
+> **Step 6c — the specular term only.** 6b with `r·v` replaced by `n·h`. Same rate, varyings,
+> uniforms, ambient and diffuse — a standing A/B against `PhongShader`.
+
+**Uniforms:** identical to `PhongShader`.
+**Varyings:** unchanged — `std::array<tinymath::Vec3f, 3> varyingNormals_`.
+
+`fragment()` blends and re-normalizes as 6a does, computes
+`view_light_half_vector = normalize(lightDirection_ + viewDirection_)`, and evaluates specular as
+`pow(max(0, dot(n, h)), shininess_)`. The reflection-vector steps are gone;
+`light_normal_incident_ratio` stays because diffuse still needs it.
+
+**Both registered predictions confirmed on screen:**
+1. At `shininess = 200` in both shaders, Blinn-Phong's highlight is visibly wider and softer — same
+   peak, slower falloff. At **800** it matches Phong at 200.
+2. With the light behind the model at the camera's elevation (`light = {-2.5, 1.0, -2.5}`, eye
+   `{2.5, 1.0, 2.5}`, so `h` points straight up and both `l` and `v` sit ~16° above upward-facing
+   surfaces), Blinn-Phong's highlight stretches vertically and Phong's stays round.
+
+**The unlit-side specular artifact still did not appear**, even with most of the visible surface
+facing away from the light. At these exponents it cannot: on a face with `n·l ≤ 0`, the best
+achievable value in that setup is `n·h ≈ 0.96` for Blinn and `r·v ≈ 0.85` for Phong, and both
+0.96⁸⁰⁰ and 0.85²⁰⁰ are ≈ e⁻³². It would leak through only at single-digit exponents. The `n·l > 0`
+gate stays parked for both shaders.
 
 ### `Application` — call sites
 
@@ -339,8 +403,8 @@ and sums ambient + diffuse + specular.
 into `ObjLoader` as the validation throw. This does *not* violate keep-superseded-rungs: that rule
 protects working *rungs* kept as standing A/Bs, and this function never rendered anything the flat
 one did not — it is a copy of it plus a guard, and it still computes the face normal by cross
-product rather than reading the file normals its name claims. Verification scaffolding, not a rung. Three new functions, one per shader, each composing `perspective · lookAt` **without**
-`viewport` and looping `for face → for 3 corners → shader.vertex(...)` → `drawTriangleWithShader`.
+product rather than reading the file normals its name claims. Verification scaffolding, not a rung. One new function per shader, each composing `perspective · lookAt` **without**
+`viewport` and looping `for face → for 3 corners → shader.vertex(...)` → `drawTriangle`.
 
 ### `tests/test_shading.cpp`
 
@@ -351,14 +415,28 @@ product rather than reading the file normals its name claims. Verification scaff
 - `FaceShader` and a hand-computed `max(0, n·l)` agree for a known triangle and light.
 - A blended normal from three differing unit normals is not unit length before re-normalization —
   pins the reason `LambertShader::fragment` normalizes.
+- At the mirror orientation (`n = h`, equivalently `r = v`) `PhongShader` and `BlinnPhongShader` both
+  give full specular.
+- For coplanar `n`, `l`, `v` off the peak, the `n`–`h` angle is exactly half the `r`–`v` angle, and
+  at equal exponent `BlinnPhongShader` is brighter there than `PhongShader` — pins the 4× exponent
+  mapping.
+
+Tests go through each shader's public `vertex()`/`fragment()` on a one-triangle in-memory `Mesh`
+with an identity transform. The discard case uses a test-local `ConstantShader` and runs the real
+`drawTriangle`, because the property belongs to the rasterizer, not to any shader. It asserts the
+stronger form: a nearer discarded triangle must not stop a farther one drawn *afterwards* from
+winning.
 - `fragment()` returning `false` leaves both the colour and the depth buffer untouched.
 
 ---
 
-## Deferred to the end of this lesson
+## Deferred to the end of this lesson → folded into Lesson 7
 
 The five `ObjLoader` review findings, queued by explicit choice so the loader work was not
-interrupted:
+interrupted. **At the close of Lesson 6 they were moved to Lesson 7**: that lesson has to teach the
+parser `vt` anyway, which rewrites the same triad-reading code, so fixing it here would mean writing
+it twice. `testDrawMeshMatrixLightNormalsFromFile()` is already gone; its size check was not moved
+into `ObjLoader` and is repeated at every shader call site until finding 2 lands.
 
 1. **The parser assumes full `v/vt/vn` triads, and silently produces garbage when it is wrong**
    (the only correctness item). `f 1//1 2//2 3//3`, `f 1/1 2/2 3/3` and `f 1 2 3` all break

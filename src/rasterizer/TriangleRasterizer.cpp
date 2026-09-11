@@ -139,7 +139,7 @@ void TriangleRasterizer::drawTriangle2D(
 }
 
 
-void TriangleRasterizer::drawTriangle(const Triangle& triangle, Color color, Framebuffer& frame_buffer, bool cull_back_faces)
+void TriangleRasterizer::drawTriangleSolidColor(const Triangle& triangle, Color color, Framebuffer& frame_buffer, bool cull_back_faces)
 {
     float parallelogram_area = screen::twiceSignedArea(triangle);
     
@@ -193,7 +193,7 @@ void TriangleRasterizer::drawTriangle(const Triangle& triangle, Color color, Fra
 }
 
 
-void TriangleRasterizer::drawTriangleWithShader(
+void TriangleRasterizer::drawTriangle(
     const std::array<tinymath::Vec4f, 3>& clip_positions,
     AbstractShader& shader,
     Framebuffer& frame_buffer,

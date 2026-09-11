@@ -56,3 +56,15 @@ add_project_test(test_triangle_rasterizer
     ${CMAKE_SOURCE_DIR}/src/math/Projection.cpp
 
 )
+
+add_project_test(test_shading
+    ${CMAKE_SOURCE_DIR}/src/rasterizer/TriangleRasterizer.cpp
+    ${CMAKE_SOURCE_DIR}/src/rasterizer/Framebuffer.cpp
+    ${CMAKE_SOURCE_DIR}/src/rasterizer/ScreenSpace.cpp
+    ${CMAKE_SOURCE_DIR}/src/math/Projection.cpp
+    ${CMAKE_SOURCE_DIR}/src/rasterizer/shaders/FaceShader.cpp
+    ${CMAKE_SOURCE_DIR}/src/rasterizer/shaders/GouraudShader.cpp
+    ${CMAKE_SOURCE_DIR}/src/rasterizer/shaders/LambertShader.cpp
+    ${CMAKE_SOURCE_DIR}/src/rasterizer/shaders/PhongShader.cpp
+    ${CMAKE_SOURCE_DIR}/src/rasterizer/shaders/BlinnPhongShader.cpp
+)
