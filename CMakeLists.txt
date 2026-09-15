@@ -63,6 +63,7 @@ add_executable(TinyRendererSE
     src/rasterizer/LineDrawer.cpp
     src/rasterizer/TriangleRasterizer.cpp
     src/rasterizer/ScreenSpace.cpp
+    src/rasterizer/Texture.cpp
     src/rasterizer/shaders/RandomShader.cpp
     src/rasterizer/shaders/FaceShader.cpp
     src/rasterizer/shaders/GouraudShader.cpp
@@ -73,6 +74,7 @@ add_executable(TinyRendererSE
     src/display/DisplayPipeline.cpp
     src/display/GraphicsPipeline.cpp
     src/io/ObjLoader.cpp
+    src/io/TextureLoader.cpp
     src/math/Projection.cpp
     src/math/Transform.cpp
     ${ENGINE_SRC}/core/VulkanContext.cpp
