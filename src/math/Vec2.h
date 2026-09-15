@@ -8,10 +8,20 @@ namespace tinymath
         T x;
         T y;
 
+        Vec2<T> operator +(const Vec2<T>& b) const
+        {
+            return Vec2<T>{x + b.x, y + b.y}; 
+        }
+
         Vec2<T> operator -(const Vec2<T>& b) const
         {
             return Vec2<T>{x - b.x, y - b.y}; 
-        } 
+        }
+
+        Vec2<T> operator *(const T b) const
+        {
+            return Vec2<T>{x * b, y * b}; 
+        }
     };
 
 

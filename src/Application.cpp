@@ -20,6 +20,7 @@
 #include "rasterizer/shaders/LambertShader.h"
 #include "rasterizer/shaders/PhongShader.h"
 #include "rasterizer/shaders/BlinnPhongShader.h"
+#include "rasterizer/shaders/UvColorShader.h"
 #include "geometry/Mesh.h"
 #include "utils/Timer.h"
 #include "io/ObjLoader.h"
@@ -60,7 +61,8 @@ void Application::run()
     // testDrawMeshGouraudShader();
     // testDrawMeshLambertShader();
     // testDrawMeshPhongShader();
-    testDrawMeshBlinnPhongShader();
+    // testDrawMeshBlinnPhongShader();
+    testDrawMeshUvColorShader();
 
     mainLoop();
 }
@@ -859,6 +861,43 @@ void Application::testDrawMeshBlinnPhongShader()
         triangle_vertex[2] = blinn_phong_shader.vertex(index, 2);
         
         TriangleRasterizer::drawTriangle(triangle_vertex, blinn_phong_shader, framebuffer_, true);
+    }
+
+}
+
+
+void Application::testDrawMeshUvColorShader()
+{
+    framebuffer_.clear(Color{0,0,0,0});
+    const Mesh geometry_mesh = io::loadObj("models/diablo3_pose.obj");
+    
+    if (geometry_mesh.faceIndices.size() != geometry_mesh.faceNormalIndices.size())
+    {
+        std::cout << "mismatch from faceIndex and face NormalsIndices sizes!!!";
+        return;
+    }  
+
+    // transformation matrix
+    tinymath::Matrix4x4 transformation_matrix = tinymath::perspective(3.0f) *
+                                                tinymath::lookAt(
+                                                    {2.5f, 1.0f, 2.5f}, 
+                                                    {0.0f, 0.0f, 0.0f}, 
+                                                    {0.0f, 1.0f, 0.0f}
+                                                );
+    
+    UvColorShader uv_color_shader(
+        geometry_mesh, 
+        transformation_matrix
+    );
+
+    for (int index = 0; index < static_cast<int>(geometry_mesh.faceIndices.size()); index++)
+    {
+        std::array<tinymath::Vec4f,3> triangle_vertex; 
+        triangle_vertex[0] = uv_color_shader.vertex(index, 0); 
+        triangle_vertex[1] = uv_color_shader.vertex(index, 1); 
+        triangle_vertex[2] = uv_color_shader.vertex(index, 2);
+        
+        TriangleRasterizer::drawTriangle(triangle_vertex, uv_color_shader, framebuffer_, true);
     }
 
 }

@@ -69,6 +69,7 @@ add_executable(TinyRendererSE
     src/rasterizer/shaders/LambertShader.cpp
     src/rasterizer/shaders/PhongShader.cpp
     src/rasterizer/shaders/BlinnPhongShader.cpp
+    src/rasterizer/shaders/uvColorShader.cpp
     src/display/DisplayPipeline.cpp
     src/display/GraphicsPipeline.cpp
     src/io/ObjLoader.cpp
