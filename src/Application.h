@@ -64,6 +64,7 @@ private:
     void testDrawMeshPhongShader();
     void testDrawMeshBlinnPhongShader();
     void testDrawMeshUvColorShader();
+    void testDrawMeshTextureShader();
 
     static constexpr uint32_t WIDTH = 800;
     static constexpr uint32_t HEIGHT = 800;

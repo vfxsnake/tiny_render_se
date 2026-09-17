@@ -21,9 +21,12 @@
 #include "rasterizer/shaders/PhongShader.h"
 #include "rasterizer/shaders/BlinnPhongShader.h"
 #include "rasterizer/shaders/UvColorShader.h"
+#include "rasterizer/shaders/TextureShader.h"
+#include "rasterizer/Texture.h"
 #include "geometry/Mesh.h"
 #include "utils/Timer.h"
 #include "io/ObjLoader.h"
+#include "io/TextureLoader.h"
 #include "math/Projection.h"
 #include "math/Transform.h"
 
@@ -62,7 +65,8 @@ void Application::run()
     // testDrawMeshLambertShader();
     // testDrawMeshPhongShader();
     // testDrawMeshBlinnPhongShader();
-    testDrawMeshUvColorShader();
+    // testDrawMeshUvColorShader();
+    testDrawMeshTextureShader();
 
     mainLoop();
 }
@@ -898,6 +902,46 @@ void Application::testDrawMeshUvColorShader()
         triangle_vertex[2] = uv_color_shader.vertex(index, 2);
         
         TriangleRasterizer::drawTriangle(triangle_vertex, uv_color_shader, framebuffer_, true);
+    }
+
+}
+
+
+
+void Application::testDrawMeshTextureShader()
+{
+    framebuffer_.clear(Color{0,0,0,0});
+    const Mesh geometry_mesh = io::loadObj("models/diablo3_pose.obj");
+    const Texture texture = io::loadTexture("models/diablo3_pose_diffuse.tga");
+    
+    if (geometry_mesh.faceIndices.size() != geometry_mesh.faceNormalIndices.size())
+    {
+        std::cout << "mismatch from faceIndex and face NormalsIndices sizes!!!";
+        return;
+    }  
+
+    // transformation matrix
+    tinymath::Matrix4x4 transformation_matrix = tinymath::perspective(3.0f) *
+                                                tinymath::lookAt(
+                                                    {2.5f, 1.0f, 2.5f}, 
+                                                    {0.0f, 0.0f, 0.0f}, 
+                                                    {0.0f, 1.0f, 0.0f}
+                                                );
+    
+    TextureShader texture_shader(
+        geometry_mesh,
+        texture, 
+        transformation_matrix
+    );
+
+    for (int index = 0; index < static_cast<int>(geometry_mesh.faceIndices.size()); index++)
+    {
+        std::array<tinymath::Vec4f,3> triangle_vertex; 
+        triangle_vertex[0] = texture_shader.vertex(index, 0); 
+        triangle_vertex[1] = texture_shader.vertex(index, 1); 
+        triangle_vertex[2] = texture_shader.vertex(index, 2);
+        
+        TriangleRasterizer::drawTriangle(triangle_vertex, texture_shader, framebuffer_, true);
     }
 
 }
