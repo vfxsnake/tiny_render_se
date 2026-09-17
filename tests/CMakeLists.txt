@@ -68,3 +68,7 @@ add_project_test(test_shading
     ${CMAKE_SOURCE_DIR}/src/rasterizer/shaders/PhongShader.cpp
     ${CMAKE_SOURCE_DIR}/src/rasterizer/shaders/BlinnPhongShader.cpp
 )
+
+add_project_test(test_texture
+    ${CMAKE_SOURCE_DIR}/src/rasterizer/Texture.cpp
+)

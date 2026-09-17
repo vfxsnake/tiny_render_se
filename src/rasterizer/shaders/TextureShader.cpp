@@ -22,7 +22,6 @@ tinymath::Vec4f TextureShader::vertex(int face_index, int vertex_index)
     tinymath::Vec3f vertex_position = mesh_->vertices[vertex_list[vertex_index]];
     
     const auto& uv_coord_list = mesh_->faceTextureCoordinateIndices[face_index];
-    
     tinymath::Vec3f uvw = mesh_->textureCoordinates[uv_coord_list[vertex_index]];
     varyingUvs_[vertex_index] = {uvw.x, uvw.y};
 

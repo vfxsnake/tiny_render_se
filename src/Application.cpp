@@ -22,6 +22,7 @@
 #include "rasterizer/shaders/BlinnPhongShader.h"
 #include "rasterizer/shaders/UvColorShader.h"
 #include "rasterizer/shaders/TextureShader.h"
+#include "rasterizer/shaders/MaterialShader.h"
 #include "rasterizer/Texture.h"
 #include "geometry/Mesh.h"
 #include "utils/Timer.h"
@@ -66,7 +67,8 @@ void Application::run()
     // testDrawMeshPhongShader();
     // testDrawMeshBlinnPhongShader();
     // testDrawMeshUvColorShader();
-    testDrawMeshTextureShader();
+    // testDrawMeshTextureShader();
+    testDrawMeshMaterialShader();
 
     mainLoop();
 }
@@ -944,4 +946,53 @@ void Application::testDrawMeshTextureShader()
         TriangleRasterizer::drawTriangle(triangle_vertex, texture_shader, framebuffer_, true);
     }
 
+}
+
+
+void Application::testDrawMeshMaterialShader()
+{
+    framebuffer_.clear(Color{0,0,0,0});
+    const Mesh geometry_mesh = io::loadObj("models/diablo3_pose.obj");
+    const Texture diffuse_texture = io::loadTexture("models/diablo3_pose_diffuse.tga");
+    const Texture specular_texture = io::loadTexture("models/diablo3_pose_spec.tga");
+    const Texture emission_texture = io::loadTexture("models/diablo3_pose_glow.tga");
+    
+    if (geometry_mesh.faceIndices.size() != geometry_mesh.faceNormalIndices.size())
+    {
+        std::cout << "mismatch from faceIndex and face NormalsIndices sizes!!!";
+        return;
+    }  
+
+    // transformation matrix
+    tinymath::Matrix4x4 transformation_matrix = tinymath::perspective(3.0f) *
+                                                tinymath::lookAt(
+                                                    {2.5f, 1.0f, 2.5f}, 
+                                                    {0.0f, 0.0f, 0.0f}, 
+                                                    {0.0f, 1.0f, 0.0f}
+                                                );
+    
+    MaterialShader material_shader(
+        geometry_mesh,
+        diffuse_texture,
+        specular_texture,
+        emission_texture, 
+        transformation_matrix,
+        {0.0f, 0.0f, 1.0f}, // light direction 
+        tinymath::normalize(tinymath::Vec3f{2.5f, 1.0f, 2.5f}), // view direction
+        0.8f, // diffuse multiplier
+        1.0f, // specular multiplier
+        100.0f, // shininess
+        1.0f, // emission multiplier
+        0.1f // ambient multiplier
+    );
+
+    for (int index = 0; index < static_cast<int>(geometry_mesh.faceIndices.size()); index++)
+    {
+        std::array<tinymath::Vec4f,3> triangle_vertex; 
+        triangle_vertex[0] = material_shader.vertex(index, 0); 
+        triangle_vertex[1] = material_shader.vertex(index, 1); 
+        triangle_vertex[2] = material_shader.vertex(index, 2);
+        
+        TriangleRasterizer::drawTriangle(triangle_vertex, material_shader, framebuffer_, true);
+    }
 }
