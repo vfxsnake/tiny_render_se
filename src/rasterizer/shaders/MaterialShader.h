@@ -26,6 +26,7 @@ public:
         const Texture& diffuse_texture,
         const Texture& specular_texture,
         const Texture& emission_texture,
+        const Texture& normal_map_texture,
         const tinymath::Matrix4x4& transform,
         tinymath::Vec3f light_direction,
         tinymath::Vec3f view_direction,
@@ -45,6 +46,7 @@ private:
     const Texture* diffuseTexture_;
     const Texture* specularTexture_;
     const Texture* emissionTexture_;
+    const Texture* normalMapTexture_;
 
     tinymath::Matrix4x4 transform_;
     tinymath::Vec3f lightDirection_;
@@ -56,6 +58,7 @@ private:
     float emissionIntensity_;
     float ambientIntensity_;
 
+    std::array<tinymath::Vec3f, 3> vertexWorldPosition_ = {};
     std::array<tinymath::Vec3f, 3> varyingNormals_ = {};
     std::array<tinymath::Vec2f, 3> varyingUvs_ = {};
 };

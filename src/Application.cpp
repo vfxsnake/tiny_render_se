@@ -956,6 +956,7 @@ void Application::testDrawMeshMaterialShader()
     const Texture diffuse_texture = io::loadTexture("models/diablo3_pose_diffuse.tga");
     const Texture specular_texture = io::loadTexture("models/diablo3_pose_spec.tga");
     const Texture emission_texture = io::loadTexture("models/diablo3_pose_glow.tga");
+    const Texture normal_map_texture = io::loadTexture("models/diablo3_pose_nm.tga");
     
     if (geometry_mesh.faceIndices.size() != geometry_mesh.faceNormalIndices.size())
     {
@@ -976,6 +977,7 @@ void Application::testDrawMeshMaterialShader()
         diffuse_texture,
         specular_texture,
         emission_texture, 
+        normal_map_texture,
         transformation_matrix,
         {0.0f, 0.0f, 1.0f}, // light direction 
         tinymath::normalize(tinymath::Vec3f{2.5f, 1.0f, 2.5f}), // view direction

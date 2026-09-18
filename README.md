@@ -13,13 +13,14 @@ Porting these algorithms to GPU compute shaders is **a separate project**, not a
 
 ## Current status
 
-**As of 2026-09-17 — Lesson 8 (Tangent space) next; Lessons 0-7 complete.**
+**As of 2026-09-18 — Lesson 9 (Shadow mapping) next; Lessons 0-8 complete.**
 
 - **Phase 0 - Display pipeline: complete.** Vulkan window showing a CPU framebuffer uploaded each frame through a staging buffer and sampled over a fullscreen quad. Renderer-agnostic, so it seeds a future ray-tracing project unchanged.
 - **Lessons 1-5: complete.** Bresenham lines, barycentric triangle rasterization, z-buffer, perspective projection, and camera (`lookAt` + viewport matrix). All math hand-written in `src/math/` - no GLM anywhere in the rasterizer.
 - **Lesson 6 - Shading: complete.** `AbstractShader` fixes the two-stage contract (`vertex()` per corner, `fragment()` per candidate pixel with barycentric weights, `false` discards). Random, Face, Gouraud, Lambert, Phong and Blinn-Phong all remain in the tree as standing A/Bs rather than being replaced.
 - **Lesson 7 - More data!: complete.** The OBJ loader reads `vt`, and `UvColorShader` confirmed that parse on screen before anything relied on it. `Texture` owns its decoded RGBA pixels; `sample()` scales the uv, truncates, clamps on the final integer index and flips v - row 0 is the top of the image while `v = 0` is the bottom, a mismatch left undecided on purpose and diagnosed the intended way, on screen. `MaterialShader` is the lit end-state: Blinn-Phong reading albedo, specular **colour** and emission from three maps per texel, with the exponent, ambient and per-component intensities as free parameters. The lesson page feeds the spec map in as a per-texel exponent; it reads as colour and is used as colour here. `TextureShader` (flat diffuse) and `BlinnPhongShader` (untextured) stay in the tree as A/Bs. `tests/test_texture.cpp` passes.
-- **Next: Lesson 8 - tangent space normal mapping.** A fourth texture read in `MaterialShader`, with the global-space `_nm.tga` rendered once as the answer key the tangent-space version must match. Shadow mapping and ambient occlusion grow into the same class, which is why it is not named after its lighting model.
+- **Lesson 8 - Tangent space: complete.** A fourth texture read in `MaterialShader`. Per pixel, the triangle's tangent and bitangent are solved from its position edges and UV deltas (`[t b] = E · U⁻¹`, written out as a 2×2 solve), and the decoded `_nm_tangent.tga` texel is mapped through `t·x + b·y + n·z` with the interpolated normal as `n`. The determinant's sign is kept, so mirrored UV islands (limbs, tail) flip correctly. Feeding the tangent map in as a global-space map was run deliberately first: every normal sits near `(0,0,1)`, so the model lights flat. Verified by eye; no zero-area-UV guard, no orthogonalization, no unit tests.
+- **Next: Lesson 9 - shadow mapping.** Shadow mapping and ambient occlusion grow into `MaterialShader`, which is why it is not named after its lighting model.
 
 Known gaps: the five `.tga` maps must be hand-copied into `build/models/` on every clean build (no CMake copy rule yet), and perspective-correct interpolation is deliberately deferred to the end of the series.
 
@@ -106,8 +107,8 @@ The project follows the TinyRenderer lesson sequence. Each lesson adds one or mo
 | 5 | Better camera | Complete |
 | 6 | Shading | Complete |
 | 7 | More data! (textures, normal & specular maps) | Complete |
-| 8 | Tangent space | Next |
-| 9 | Shadow mapping | Planned |
+| 8 | Tangent space | Complete |
+| 9 | Shadow mapping | Next |
 | 10 | Ambient occlusion | Planned |
 | 11 | Toon shading (bonus) | Planned |
 | — | GPU compute port | Split into a separate project |
