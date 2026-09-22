@@ -22,6 +22,7 @@ public:
     ~Application();
 
     void run();
+    void blitDepthAsGrayscale(const Framebuffer& source);
     
 private:
     void initWindow();
@@ -66,6 +67,7 @@ private:
     void testDrawMeshUvColorShader();
     void testDrawMeshTextureShader();
     void testDrawMeshMaterialShader();
+    void testDrawMeshShadowMap();
 
     static constexpr uint32_t WIDTH = 800;
     static constexpr uint32_t HEIGHT = 800;

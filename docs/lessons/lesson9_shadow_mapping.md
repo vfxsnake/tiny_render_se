@@ -2,9 +2,9 @@
 
 **Source:** https://haqr.eu/tinyrenderer/shadow/
 
-> **Status: PLANNED (Session 58, 2026-09-21). No code written yet.**
-> This document is the design agreed before the spike. The spike — rendering the shadow map to
-> screen as greyscale — is the next action. Rows marked *Proposed* in the decisions table are
+> **Status: IN PROGRESS (Session 59, 2026-09-22). Checkpoint 1 done — the shadow map renders
+> on screen as greyscale from the light's view.** Pass 2 (the lookup in `MaterialShader`) is
+> next. Rows marked *Proposed* in the decisions table are
 > Claude's recommendations that the user has not yet ruled on; rows marked *Agreed* were settled
 > in discussion this session.
 
@@ -90,12 +90,15 @@ not considered to block itself. The bias has two failure modes and both are visi
 ### Directional light, orthographic projection
 
 A shadow map needs a *viewpoint*, but `lightDirection_` is only a direction. For a directional
-light, the light camera is placed at `direction × distance` looking at the origin, and the
+light, the light camera is placed along `direction` looking at the origin, and the
 projection is **orthographic** — which in this codebase means `lookAt()` with **no**
 `perspective()` matrix multiplied in, since `perspective(f)` is identity plus `−1/f`.
 
-Under an orthographic projection the light's distance does not change the picture. It changes
-only the depth range, which is what the bounds measurement below is about.
+**Distance does nothing in this codebase (measured, Session 59).** `lookAt`'s `offset_matrix`
+translates by `−target`, not `−eye`; the eye only contributes the direction `eye − target`. The
+light-space origin sits at the target, so light-space z is `dot(p, direction)` whatever the
+distance — the ranges at `× 2` and `× 3` were identical. The camera only works because
+`perspective(3.0f)` supplies its distance. The only knob left for the depth range is a scale.
 
 ### The depth range trap
 
@@ -124,6 +127,9 @@ the shadow map is believed.
 | Bias value | Open, found by sweeping | *Open* | Has no correct value a priori; both failure modes are visible on screen. |
 | Shadow map lifetime | Local vs `Application` member | *Open* | Must outlive pass 1 and be readable during pass 2, so both passes must be reachable from one scope. |
 | Back-face culling in the light pass | Left on | *Proposed* | Closed mesh; front faces as seen from the light are the correct occluders. |
+| Light direction | Normalized `{1,1,1}` | **Agreed** | `{0,0,1}` casts straight at the camera-facing side and would barely show a shadow. |
+| Fitting the model into the light frustum | Uniform `0.8` scale, `scale * lookAt(...)` | **Agreed** | Measured unscaled: x [−0.89, 0.84], y [−0.95, **1.045**], z [**−1.087**, 0.64]. z below −1 falls under the cleared 0.0f depth and vanishes; y above 1 clips the horns. Uniform so y is fixed too and proportions hold. At 0.8: z [−0.87, 0.51], y [−0.76, 0.84]. `data[3][3]` stays **1** — scaling w would be undone by the perspective divide. |
+| Matrix passed to each pass | `DepthShader`: `light_matrix` only. `MaterialShader` lookup: `viewport(shadow map size) × light_matrix` | **Agreed** | `drawTriangle` applies the viewport internally in pass 1; the lookup in pass 2 has to reproduce it by hand, with the **shadow map's** size, not the screen's. |
 | Soft shadows / PCF, multiple lights | **Out of scope** | **Agreed** | Deferred; not part of this lesson. |
 
 ---
@@ -153,23 +159,24 @@ fills a depth buffer; it produces no meaningful colour and carries no varyings.
   divide, samples `shadowMap_->getDepth()` at the resulting pixel, and compares.
 - The resulting factor multiplies **diffuse and specular only**.
 
-### `Application::testDrawShadowMap()` (new — the spike)
+### `Application::testDrawMeshShadowMap()` (new — the spike, implemented)
 
 **Responsibility:** the checkpoint-1 view. Builds the light matrix, renders every face with
 `DepthShader` into a local `Framebuffer`, then blits that buffer's depth to the screen. Touches
 `MaterialShader` not at all.
 
-### `Application::blitDepthAsGreyscale(const Framebuffer& source)` (new)
+### `Application::blitDepthAsGrayscale(const Framebuffer& source)` (new, implemented)
 
 **Responsibility:** reads `source.getDepth(x, y)` and writes a grey into `framebuffer_`.
 
 Named and planned as a separate function from the start — per the Session 57 rule — because
 Lesson 10 (SSAO) makes the depth buffer a shader input and will want this view again.
 
-### Measurement, before any of the above is trusted
+### Measurement, before any of the above is trusted (done, Session 59)
 
-Loop the mesh vertices through the light matrix and print the min/max of light-space z. If the
-range is not inside [−1, 1], the distance or a scale changes before the picture means anything.
+Looped the mesh vertices through the light matrix and tracked per-axis min/max. The unscaled
+range failed on z and y; distance was shown to be a no-op; a uniform 0.8 scale brings every axis
+inside [−1, 1]. See the decisions table.
 
 ### Tests
 
@@ -179,16 +186,18 @@ the screen.
 
 ---
 
-## Open at the close of Session 58
+## Open at the close of Session 59
 
-- **Nothing implemented.** The next action is the spike: `DepthShader` +
-  `testDrawShadowMap()` + `blitDepthAsGreyscale()`, preceded by the light-space z bounds
-  measurement.
-- **Light direction is still `{0,0,1}`.** That casts almost straight at the camera-facing side
-  and will throw a shadow that is barely visible. Something like a normalized `{1,1,1}` gives an
-  obvious cast shadow — but it changes the shading too, and `lookAt`'s up vector degenerates if
-  the light direction becomes parallel to it.
-- **`vertexWorldPosition_` is still object space.** This lesson adds a second transform (`N`)
+- **Checkpoint 1 done.** `DepthShader` (in `CMakeLists.txt`), `testDrawMeshShadowMap()` and
+  `blitDepthAsGrayscale()` exist; the greyscale shadow map shows the diablo from the light, nearer
+  = brighter, as predicted from the "bigger wins" convention.
+- **Next: pass 2.** `MaterialShader` gains a `const Framebuffer*` shadow map, the
+  `viewport × light_matrix` lookup matrix and the bias. `fragment()` interpolates
+  `vertexWorldPosition_`, transforms, divides, samples, compares; the factor scales diffuse and
+  specular only. Both passes must be reachable from one scope (shadow map lifetime still open).
+- **Light direction** in `testDrawMeshMaterialShader()` is still `{0,0,1}`; it must become the
+  same normalized `{1,1,1}` the light pass uses, or shading and shadow disagree.
+- **`vertexWorldPosition_` is still object space.** This lesson adds a second transform
   built from the same object-space convention, so the name stays wrong in the same way it was
   wrong in Lesson 8. A real model matrix is still the trigger to fix it.
 - **UVs are still interpolated in screen space** (perspective-correct interpolation deferred to

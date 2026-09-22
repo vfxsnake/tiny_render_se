@@ -23,6 +23,7 @@
 #include "rasterizer/shaders/UvColorShader.h"
 #include "rasterizer/shaders/TextureShader.h"
 #include "rasterizer/shaders/MaterialShader.h"
+#include "rasterizer/shaders/DepthShader.h"
 #include "rasterizer/Texture.h"
 #include "geometry/Mesh.h"
 #include "utils/Timer.h"
@@ -68,11 +69,25 @@ void Application::run()
     // testDrawMeshBlinnPhongShader();
     // testDrawMeshUvColorShader();
     // testDrawMeshTextureShader();
-    testDrawMeshMaterialShader();
+    // testDrawMeshMaterialShader();
+    testDrawMeshShadowMap();
 
     mainLoop();
 }
 
+
+void Application::blitDepthAsGrayscale(const Framebuffer& source)
+{
+    for (int y = 0; y < source.getHeight(); y++)
+    {
+        for (int x = 0; x < source.getWidth(); x++)
+        {
+            float depth_value = source.getDepth(x, y);
+            uint8_t depth_grayscale = static_cast<uint8_t>(depth_value * 255);
+            framebuffer_.setPixel(x, y, {depth_grayscale, depth_grayscale, depth_grayscale, 255});
+        }
+    }
+}
 
 void Application::initWindow()
 {
@@ -997,4 +1012,39 @@ void Application::testDrawMeshMaterialShader()
         
         TriangleRasterizer::drawTriangle(triangle_vertex, material_shader, framebuffer_, true);
     }
+}
+
+
+void Application::testDrawMeshShadowMap()
+{
+    framebuffer_.clear(Color{0,0,0,0});
+    const Mesh geometry_mesh = io::loadObj("models/diablo3_pose.obj");
+
+    // Light matrix
+    tinymath::Matrix4x4 scale;
+    scale.data[0][0] = 0.8f; // constant scale for the light in the current scene conditions.
+    scale.data[1][1] = 0.8f;
+    scale.data[2][2] = 0.8f;
+    tinymath::Matrix4x4 light_matrix = scale * tinymath::lookAt(
+                                                    tinymath::normalize(tinymath::Vec3f(1.0f, 1.0f, 1.0f)), 
+                                                    {0.0f, 0.0f, 0.0f}, 
+                                                    {0.0f, 1.0f, 0.0f}
+    );
+
+    // shadow map frame buffer
+    Framebuffer shadow_map_buffer(WIDTH, HEIGHT);
+    shadow_map_buffer.clear(Color{0,0,0,0});
+
+    DepthShader depth_shader(geometry_mesh, light_matrix);
+    for (int index = 0; index < static_cast<int>(geometry_mesh.faceIndices.size()); index++)
+    {
+        std::array<tinymath::Vec4f,3> triangle_vertex; 
+        triangle_vertex[0] = depth_shader.vertex(index, 0); 
+        triangle_vertex[1] = depth_shader.vertex(index, 1); 
+        triangle_vertex[2] = depth_shader.vertex(index, 2);
+        
+        TriangleRasterizer::drawTriangle(triangle_vertex, depth_shader, shadow_map_buffer, true);
+    }
+
+    blitDepthAsGrayscale(shadow_map_buffer);
 }
