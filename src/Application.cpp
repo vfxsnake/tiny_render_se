@@ -69,8 +69,8 @@ void Application::run()
     // testDrawMeshBlinnPhongShader();
     // testDrawMeshUvColorShader();
     // testDrawMeshTextureShader();
-    // testDrawMeshMaterialShader();
-    testDrawMeshShadowMap();
+    // testDrawMeshShadowMap();
+    testDrawMeshMaterialShader();
 
     mainLoop();
 }
@@ -986,22 +986,54 @@ void Application::testDrawMeshMaterialShader()
                                                     {0.0f, 0.0f, 0.0f}, 
                                                     {0.0f, 1.0f, 0.0f}
                                                 );
+
+    // shadow map frame buffer
+    Framebuffer shadow_map_buffer(WIDTH, HEIGHT);
+    shadow_map_buffer.clear(Color{0,0,0,0});
+    
+    // Light matrix
+    tinymath::Vec3f light_direction = tinymath::normalize(tinymath::Vec3f(-1.0f, 1.0f, 1.0f));
+    tinymath::Matrix4x4 scale;
+    scale.data[0][0] = 0.8f; // constant scale for the light in the current scene conditions.
+    scale.data[1][1] = 0.8f;
+    scale.data[2][2] = 0.8f;
+    tinymath::Matrix4x4 light_matrix = scale * tinymath::lookAt(
+                                                    light_direction,
+                                                    {0.0f, 0.0f, 0.0f}, 
+                                                    {0.0f, 1.0f, 0.0f}
+    );
+    
     
     MaterialShader material_shader(
         geometry_mesh,
+        shadow_map_buffer,
         diffuse_texture,
         specular_texture,
         emission_texture, 
         normal_map_texture,
         transformation_matrix,
-        {0.0f, 0.0f, 1.0f}, // light direction 
+        tinymath::viewport(shadow_map_buffer.getWidth(), shadow_map_buffer.getHeight()) * light_matrix,
+        light_direction, // light direction 
         tinymath::normalize(tinymath::Vec3f{2.5f, 1.0f, 2.5f}), // view direction
-        0.8f, // diffuse multiplier
+        1.0f, // diffuse multiplier
         1.0f, // specular multiplier
         100.0f, // shininess
         1.0f, // emission multiplier
-        0.1f // ambient multiplier
+        0.1f, // ambient multiplier
+        0.05f // shadow bias
     );
+
+    DepthShader depth_shader(geometry_mesh, light_matrix);
+    for (int index = 0; index < static_cast<int>(geometry_mesh.faceIndices.size()); index++)
+    {
+        std::array<tinymath::Vec4f,3> triangle_vertex; 
+        triangle_vertex[0] = depth_shader.vertex(index, 0); 
+        triangle_vertex[1] = depth_shader.vertex(index, 1); 
+        triangle_vertex[2] = depth_shader.vertex(index, 2);
+        
+        TriangleRasterizer::drawTriangle(triangle_vertex, depth_shader, shadow_map_buffer, true);
+    }
+
 
     for (int index = 0; index < static_cast<int>(geometry_mesh.faceIndices.size()); index++)
     {

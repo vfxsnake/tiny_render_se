@@ -2,11 +2,9 @@
 
 **Source:** https://haqr.eu/tinyrenderer/shadow/
 
-> **Status: IN PROGRESS (Session 59, 2026-09-22). Checkpoint 1 done — the shadow map renders
-> on screen as greyscale from the light's view.** Pass 2 (the lookup in `MaterialShader`) is
-> next. Rows marked *Proposed* in the decisions table are
-> Claude's recommendations that the user has not yet ruled on; rows marked *Agreed* were settled
-> in discussion this session.
+> **Status: DONE (Session 60, 2026-09-27).** Both passes implemented; diablo renders with a hard
+> cast shadow that tracks the light direction, acne cleared at `bias = 0.05f`. Every row in the
+> decisions table is now **Agreed** — the three that were *Open* were closed this session.
 
 ## Goal
 
@@ -81,6 +79,14 @@ the pixels come out marginally behind their own record and classify themselves a
 The result is **shadow acne**: stripes of self-shadowing across lit surfaces, following the
 rasterization pattern.
 
+**The shape of the acne names its cause (observed, Session 60).** The first run produced *vertical
+lines* across the model, not random speckle. Random speckle would mean floating-point noise between
+two depths sampled at nearly the same place. A regular stripe means a *systematic* quantization
+along x — which it was: `shadow_point_transformed.x/.y` were handed to `getDepth(int, int)` as
+floats and truncated toward zero, so every lookup read a shadow-map pixel up to a whole pixel away
+in one consistent direction, where the surface sits at a measurably different distance from the
+light. `std::round` removed the stripes; the residual speckle is what the bias then handled.
+
 The fix is a small **bias** added when comparing (or subtracted when storing), so a surface is
 not considered to block itself. The bias has two failure modes and both are visible:
 
@@ -122,14 +128,17 @@ the shadow map is believed.
 | Shadow map storage | A second `Framebuffer`, CPU memory only | **Agreed** | `Framebuffer` already owns a `std::vector<float> depth_`. The colour half is written and ignored. Never uploaded to Vulkan — the display pipeline only ever sees `framebuffer_`. |
 | Why not reuse `framebuffer_` | Two separate buffers | **Agreed** | The camera pass needs its own depth buffer for its own z-test. Sharing one would have pass 2's first `setDepth` destroy the light data it still needs. |
 | Viewport matrix | Stays inside `drawTriangle`; the light matrix passed to the shader is `lookAt` only | **Agreed** | Pre-multiplying a viewport into the shader's transform would apply it twice. |
-| Where the shadow term is applied | **Inside `MaterialShader::fragment()`**, not as a post-pass | *Proposed* | The shadow multiplies diffuse and specular but must **not** kill ambient or emission. A post-pass over the finished framebuffer cannot separate those components any more. |
-| Shadow map resolution | Open | *Open* | Independent of the window. Changing one number answers whether a blocky shadow edge is resolution or bias. |
-| Bias value | Open, found by sweeping | *Open* | Has no correct value a priori; both failure modes are visible on screen. |
-| Shadow map lifetime | Local vs `Application` member | *Open* | Must outlive pass 1 and be readable during pass 2, so both passes must be reachable from one scope. |
-| Back-face culling in the light pass | Left on | *Proposed* | Closed mesh; front faces as seen from the light are the correct occluders. |
+| Where the shadow term is applied | **Inside `MaterialShader::fragment()`**, not as a post-pass | **Agreed** | The shadow multiplies diffuse and specular but must **not** kill ambient or emission. A post-pass over the finished framebuffer cannot separate those components any more. |
+| Shadow map resolution | `WIDTH × HEIGHT`, same as the screen | **Agreed** | One less suspect while pass 2 was being debugged: the lookup viewport comes out numerically identical to the camera's, so a misaligned shadow could not be blamed on a size mismatch. Built from `shadow_map_buffer.getWidth()/getHeight()`, **not** from `WIDTH`/`HEIGHT`, so changing it stays a one-line change. |
+| Bias value | `0.05f` | **Agreed** | Swept from 0. No correct value a priori. |
+| Shadow map lifetime | **Local to `testDrawMeshMaterialShader()`** | **Agreed** | Both passes live in that one function, so the buffer is provably alive while `MaterialShader` points at it. No `Application` member: nothing is interactive yet, so there is no reason to keep it across frames, and a member would put a raw lifetime dependency between two members. `MaterialShader` is *constructed* before pass 1 fills the buffer — harmless, since it holds a pointer and only reads in `fragment()`. |
+| Back-face culling in the light pass | Left on | **Agreed** | Closed mesh; front faces as seen from the light are the correct occluders. |
 | Light direction | Normalized `{1,1,1}` | **Agreed** | `{0,0,1}` casts straight at the camera-facing side and would barely show a shadow. |
 | Fitting the model into the light frustum | Uniform `0.8` scale, `scale * lookAt(...)` | **Agreed** | Measured unscaled: x [−0.89, 0.84], y [−0.95, **1.045**], z [**−1.087**, 0.64]. z below −1 falls under the cleared 0.0f depth and vanishes; y above 1 clips the horns. Uniform so y is fixed too and proportions hold. At 0.8: z [−0.87, 0.51], y [−0.76, 0.84]. `data[3][3]` stays **1** — scaling w would be undone by the perspective divide. |
 | Matrix passed to each pass | `DepthShader`: `light_matrix` only. `MaterialShader` lookup: `viewport(shadow map size) × light_matrix` | **Agreed** | `drawTriangle` applies the viewport internally in pass 1; the lookup in pass 2 has to reproduce it by hand, with the **shadow map's** size, not the screen's. |
+| Which side the bias goes on | Added to the **fragment's** depth: shadowed when `z + bias <= stored` | **Agreed** | Equivalent to requiring `stored − z >= bias`, so a **bigger bias shadows less**. `z − bias` is the opposite and can never clear acne — it shadows *more* as the bias grows. Claude reviewed the `−` version as correct; the user corrected it. |
+| Shadow-map pixel lookup | `static_cast<int>(std::round(...))` on x and y | **Agreed** | `getDepth` takes `int`. An implicit float→int conversion truncates toward zero, biasing every lookup up to a whole pixel in one direction — visible as *stripes*, not speckle (see the acne section). |
+| Folding the viewport before the divide | Allowed: `viewport × light_matrix`, then `toVec3` | **Agreed** | `drawTriangle` applies its viewport *after* the divide, the lookup applies it *before*, yet the results are identical: the viewport's translation sits in column 3, which multiplies `w`, so dividing afterwards reproduces the offset exactly. The divide is therefore mandatory, not optional — and `tinymath::toVec3` already does it (asserting `w != 0`). |
 | Soft shadows / PCF, multiple lights | **Out of scope** | **Agreed** | Deferred; not part of this lesson. |
 
 ---
@@ -159,7 +168,18 @@ fills a depth buffer; it produces no meaningful colour and carries no varyings.
   divide, samples `shadowMap_->getDepth()` at the resulting pixel, and compares.
 - The resulting factor multiplies **diffuse and specular only**.
 
-### `Application::testDrawMeshShadowMap()` (new — the spike, implemented)
+**As implemented:**
+
+```
+shadowed  ⟸  shadow_point_transformed.z + shadowBias_ <= shadowMapFramebuffer_->getDepth(
+                  round(shadow_point_transformed.x), round(shadow_point_transformed.y))
+```
+
+with `shadow_multiplier` ∈ {0, 1} multiplying `diffuse` and `specular` in all three colour
+channels. Ambient and emission are left untouched, so shadowed regions keep the material's
+ambient term and the glow map still reads through them.
+
+### `Application::testDrawMeshShadowMap()` (the checkpoint-1 spike, implemented)
 
 **Responsibility:** the checkpoint-1 view. Builds the light matrix, renders every face with
 `DepthShader` into a local `Framebuffer`, then blits that buffer's depth to the screen. Touches
@@ -186,17 +206,35 @@ the screen.
 
 ---
 
-## Open at the close of Session 59
+## Close-out (Session 60)
 
-- **Checkpoint 1 done.** `DepthShader` (in `CMakeLists.txt`), `testDrawMeshShadowMap()` and
-  `blitDepthAsGrayscale()` exist; the greyscale shadow map shows the diablo from the light, nearer
-  = brighter, as predicted from the "bigger wins" convention.
-- **Next: pass 2.** `MaterialShader` gains a `const Framebuffer*` shadow map, the
-  `viewport × light_matrix` lookup matrix and the bias. `fragment()` interpolates
-  `vertexWorldPosition_`, transforms, divides, samples, compares; the factor scales diffuse and
-  specular only. Both passes must be reachable from one scope (shadow map lifetime still open).
-- **Light direction** in `testDrawMeshMaterialShader()` is still `{0,0,1}`; it must become the
-  same normalized `{1,1,1}` the light pass uses, or shading and shadow disagree.
+Both checkpoints hit in order, and both deliberate breaks were seen on screen:
+
+- **Inverted compare.** The first working comparison had lit and shadowed swapped; flipping it
+  fixed the image. The triage bucket said *show it*, and it showed.
+- **A false positive worth remembering.** Before the comparison used the fragment's own depth at
+  all, the code tested the *stored* depth against the bias (`stored < 0.5`). That darkened the far
+  half of the light's depth range, which correlates with facing away from the light — so it read as
+  a plausible shadow. With the bias then set to 0 the test became `stored < 0`, never true, and the
+  render showed **no shadow at all** while still looking correct, because ordinary `N·L` falloff
+  plus ambient is what a shadow is easy to mistake for. The check that settles it: *does a horn cast
+  a dark patch onto the chest?* A test that never compares the fragment against the occluder cannot
+  produce that, whichever way its branch points.
+- **Acne at zero bias**, diagnosed from its stripe pattern rather than assumed (see the acne
+  section), then cleared at `0.05f`.
+- **Tracking confirmed.** Changing `light_direction` moves the cast shadow with the shading, since
+  the one vector feeds both the light matrix and `lightDirection_`.
+
+Closed this session: shadow-map lifetime, resolution, bias value, in-shader vs post-pass,
+back-face culling — all now in the decisions table. The light direction in
+`testDrawMeshMaterialShader()` is now the same normalized `{1,1,1}` as the light pass, and
+`emission`/`ambient`, zeroed while isolating the shadow, are restored to `1.0f`/`0.1f`.
+
+### Still carried forward
+
+- **The 0.8 scale is tuned for `{1,1,1}` specifically.** A different light direction changes the
+  light-space bounds, so the depth-range trap can return. If a shadow goes partly missing after a
+  direction change, that is the first suspect, not the bias.
 - **`vertexWorldPosition_` is still object space.** This lesson adds a second transform
   built from the same object-space convention, so the name stays wrong in the same way it was
   wrong in Lesson 8. A real model matrix is still the trigger to fix it.

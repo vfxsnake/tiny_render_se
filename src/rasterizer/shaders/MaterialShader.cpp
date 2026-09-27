@@ -5,37 +5,43 @@
 
 #include "geometry/Mesh.h"
 #include "rasterizer/Texture.h"
+#include "rasterizer/Framebuffer.h"
 
 
 MaterialShader::MaterialShader(
         const Mesh& mesh,
+        const Framebuffer& shadow_map_buffer,
         const Texture& diffuse_texture,
         const Texture& specular_texture,
         const Texture& emission_texture,
         const Texture& normal_map_texture,
         const tinymath::Matrix4x4& transform,
+        const tinymath::Matrix4x4& shadow_lookup_transform,
         tinymath::Vec3f light_direction,
         tinymath::Vec3f view_direction,
         float diffuse_intensity,
         float specular_intensity,
         float shininess,
         float emission_intensity,
-        float ambient_intensity
+        float ambient_intensity,
+        float shadow_bias
 ) :
     mesh_(&mesh),
+    shadowMapFramebuffer_(&shadow_map_buffer),
     diffuseTexture_(&diffuse_texture),
     specularTexture_(&specular_texture),
     emissionTexture_(&emission_texture),
     normalMapTexture_(&normal_map_texture),
     transform_(transform),
+    shadowLookupTransform_(shadow_lookup_transform),
     lightDirection_(tinymath::normalize(light_direction)),
     viewDirection_(tinymath::normalize(view_direction)),
     diffuseIntensity_(diffuse_intensity),
     specularIntensity_(specular_intensity),
     shininess_(shininess),
     emissionIntensity_(emission_intensity),
-    ambientIntensity_(ambient_intensity)
-
+    ambientIntensity_(ambient_intensity),
+    shadowBias_(shadow_bias)
 {
 
 }
@@ -131,11 +137,32 @@ bool MaterialShader::fragment(screen::BarycentricWeights weights, Color& out_col
     float emission_green = static_cast<float>(emission_color.g);
     float emission_blue = static_cast<float>(emission_color.b);
 
+    // shadow map lookup
+    tinymath::Vec3f interpolated_position = vertexWorldPosition_[0] * weights.alpha +
+                                            vertexWorldPosition_[1] * weights.beta +
+                                            vertexWorldPosition_[2] * weights.gamma;
+
+    tinymath::Vec3f shadow_point_transformed = tinymath::toVec3(
+        shadowLookupTransform_ * tinymath::toVec4(interpolated_position)
+    );
+    
+    float shadow_depth_value = shadowMapFramebuffer_->getDepth(
+        static_cast<int>(std::round(shadow_point_transformed.x)),
+        static_cast<int>(std::round(shadow_point_transformed.y))
+    );
+    
+    float shadow_multiplier = 1.0f;
+    
+    if ((shadow_point_transformed.z + shadowBias_ )<= shadow_depth_value)
+    {
+        shadow_multiplier = 0.0f;
+    }
+
     out_color = {
         static_cast<uint8_t>( // out color Red
             std::min(
-                diffuse_red * diffuse + 
-                specular_red * specular + 
+                diffuse_red * diffuse * shadow_multiplier + 
+                specular_red * specular * shadow_multiplier + 
                 emission_red * emissionIntensity_ +
                 diffuse_red * ambientIntensity_, 
                 255.0f
@@ -143,8 +170,8 @@ bool MaterialShader::fragment(screen::BarycentricWeights weights, Color& out_col
         ), 
         static_cast<uint8_t>( // out color Green
             std::min(
-                diffuse_green * diffuse + 
-                specular_green * specular + 
+                diffuse_green * diffuse * shadow_multiplier + 
+                specular_green * specular * shadow_multiplier + 
                 emission_green * emissionIntensity_ +
                 diffuse_green * ambientIntensity_, 
                 255.0f
@@ -152,8 +179,8 @@ bool MaterialShader::fragment(screen::BarycentricWeights weights, Color& out_col
         ), 
         static_cast<uint8_t>( // out color Blue
             std::min(
-                diffuse_blue * diffuse +
-                specular_blue * specular + 
+                diffuse_blue * diffuse * shadow_multiplier +
+                specular_blue * specular * shadow_multiplier + 
                 emission_blue * emissionIntensity_ +
                 diffuse_blue * ambientIntensity_, 
                 255.0f
