@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <random>
 
 #include "geometry/Mesh.h"
 #include "rasterizer/Texture.h"
@@ -11,12 +12,14 @@
 MaterialShader::MaterialShader(
         const Mesh& mesh,
         const Framebuffer& shadow_map_buffer,
+        const Framebuffer& camera_depth_buffer,
         const Texture& diffuse_texture,
         const Texture& specular_texture,
         const Texture& emission_texture,
         const Texture& normal_map_texture,
         const tinymath::Matrix4x4& transform,
         const tinymath::Matrix4x4& shadow_lookup_transform,
+        const tinymath::Matrix4x4& ambient_occlusion_lookup_transform,
         tinymath::Vec3f light_direction,
         tinymath::Vec3f view_direction,
         float diffuse_intensity,
@@ -24,16 +27,21 @@ MaterialShader::MaterialShader(
         float shininess,
         float emission_intensity,
         float ambient_intensity,
-        float shadow_bias
+        float shadow_bias,
+        int occlusion_sample_count,
+        float occlusion_radius,
+        float occlusion_bias
 ) :
     mesh_(&mesh),
     shadowMapFramebuffer_(&shadow_map_buffer),
+    cameraDepthFramebuffer_(&camera_depth_buffer),
     diffuseTexture_(&diffuse_texture),
     specularTexture_(&specular_texture),
     emissionTexture_(&emission_texture),
     normalMapTexture_(&normal_map_texture),
     transform_(transform),
     shadowLookupTransform_(shadow_lookup_transform),
+    ambientOcclusionLookupTransform_(ambient_occlusion_lookup_transform),
     lightDirection_(tinymath::normalize(light_direction)),
     viewDirection_(tinymath::normalize(view_direction)),
     diffuseIntensity_(diffuse_intensity),
@@ -41,9 +49,29 @@ MaterialShader::MaterialShader(
     shininess_(shininess),
     emissionIntensity_(emission_intensity),
     ambientIntensity_(ambient_intensity),
-    shadowBias_(shadow_bias)
+    shadowBias_(shadow_bias),
+    occlusionRadius_(occlusion_radius),
+    occlusionBias_(occlusion_bias)
+    
 {
+    std::mt19937 gen(735);
 
+    // defining the range
+    std::uniform_int_distribution<float> distribution{-1.0f, 1.0f};
+    
+    while (static_cast<int>(occlusionSampleVectors_.size()) < occlusion_sample_count)
+    {
+        tinymath::Vec3f sample_vector{
+            distribution(gen),
+            distribution(gen),
+            distribution(gen)
+        };
+
+        if (tinymath::dot(sample_vector, sample_vector) <= 1.0f)
+        {
+            occlusionSampleVectors_.push_back(sample_vector);
+        }
+    }
 }
 
 
