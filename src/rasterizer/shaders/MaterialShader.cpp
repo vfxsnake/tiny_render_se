@@ -7,6 +7,7 @@
 #include "geometry/Mesh.h"
 #include "rasterizer/Texture.h"
 #include "rasterizer/Framebuffer.h"
+#include "AmbientOcclusion.h"
 
 
 MaterialShader::MaterialShader(
@@ -57,7 +58,7 @@ MaterialShader::MaterialShader(
     std::mt19937 gen(735);
 
     // defining the range
-    std::uniform_int_distribution<float> distribution{-1.0f, 1.0f};
+    std::uniform_real_distribution<float> distribution{-1.0f, 1.0f};
     
     while (static_cast<int>(occlusionSampleVectors_.size()) < occlusion_sample_count)
     {
@@ -186,13 +187,24 @@ bool MaterialShader::fragment(screen::BarycentricWeights weights, Color& out_col
         shadow_multiplier = 0.0f;
     }
 
+    // Ambient Occlusion estimation
+    float ambient_occlusion = AmbientOcclusion::estimateAmbientOcclusion(
+        interpolated_position,
+        current_normal,
+        occlusionSampleVectors_,
+        occlusionRadius_,
+        occlusionBias_,
+        ambientOcclusionLookupTransform_,
+        *cameraDepthFramebuffer_
+    );
+
     out_color = {
         static_cast<uint8_t>( // out color Red
             std::min(
                 diffuse_red * diffuse * shadow_multiplier + 
                 specular_red * specular * shadow_multiplier + 
                 emission_red * emissionIntensity_ +
-                diffuse_red * ambientIntensity_, 
+                diffuse_red * ambientIntensity_ * ambient_occlusion, 
                 255.0f
             )
         ), 
@@ -201,7 +213,7 @@ bool MaterialShader::fragment(screen::BarycentricWeights weights, Color& out_col
                 diffuse_green * diffuse * shadow_multiplier + 
                 specular_green * specular * shadow_multiplier + 
                 emission_green * emissionIntensity_ +
-                diffuse_green * ambientIntensity_, 
+                diffuse_green * ambientIntensity_ * ambient_occlusion, 
                 255.0f
             )
         ), 
@@ -210,7 +222,7 @@ bool MaterialShader::fragment(screen::BarycentricWeights weights, Color& out_col
                 diffuse_blue * diffuse * shadow_multiplier +
                 specular_blue * specular * shadow_multiplier + 
                 emission_blue * emissionIntensity_ +
-                diffuse_blue * ambientIntensity_, 
+                diffuse_blue * ambientIntensity_ * ambient_occlusion, 
                 255.0f
             )
         ), 

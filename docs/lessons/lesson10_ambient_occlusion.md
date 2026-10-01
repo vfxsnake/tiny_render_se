@@ -2,9 +2,9 @@
 
 **Source:** https://haqr.eu/tinyrenderer/ssao/
 
-> **Status: PLANNED (Session 61, 2026-09-28).** Kick-off done, every design row **Agreed**.
-> The **Open** rows (radius, N, bias, range check, blur, final AO strength) are settled by what
-> the screen shows.
+> **Status: COMPLETE (Session 63, 2026-09-30).** Both exit conditions seen on screen. Final
+> values: radius 0.2, N 256, bias 0. Timing, screen-edge lightening and the `{-1, 1, 1}` shadow
+> check were **skipped** by the user's call; range check and blur were not needed.
 
 ## Goal
 
@@ -132,11 +132,11 @@ The AO-only checkpoint is this same pass with only the ambient term switched on 
 | Where AO is applied | Multiplies the **ambient term only**, for now | **Agreed** | That is what AO models; diffuse/specular already have direct visibility from the shadow map; emission is self-lit. The user's prior experience: AO multiplied over the *whole* composite (the common black-and-white AO pass) added a dusty look in places and washed out others. So it starts as an ambient-only component; whether it should also modulate the other components is decided after seeing it on screen. |
 | Shared code | **`estimateAmbientOcclusion`** as a dedicated free function in `AmbientOcclusion.h/.cpp`. The tangent-space block stays inline in `MaterialShader::fragment()` for now | **Agreed** | The user asked for AO as a dedicated function, not inline in `fragment()`; one algorithm per file rather than a `ShaderUtils` catch-all. Extracting the tangent-space normal is deferred to the end of the lesson, and only if the user sees fit — otherwise it stays as is. |
 | AO-only view | **No new shader.** `MaterialShader` itself, with diffuse, specular and emission intensities at `0` and ambient at `1`. For pure AO, pass a **1×1 white `Texture`** (built in memory — `Texture(pixels, 1, 1)`) as the diffuse input; the real diffuse texture shows albedo × AO | **Agreed** | Same code path as the final render, so the checkpoint cannot disagree with it. AO *is* the ambient contribution, so isolating ambient isolates AO — no temporary debug output. The white texture needs no shader change, since ambient = diffuse colour × ambient × AO. |
-| Radius | — | **Open** | Swept on screen. Starting guess ≈ 0.1 (object units). |
-| Sample count `N` | — | **Open** | Swept on screen and timed. Lesson uses 128. |
-| Bias | — | **Open** | Swept from 0, as in Lesson 9. |
-| Range check (ignore occluders far in front of the sample) | — | **Open** | Only if large-radius halos show. |
-| Blur / denoise | **Out of scope** unless noise demands it | **Open** | The lesson's "how could we improve it?" — a post-blur needs pixel x/y, i.e. a real post-pass. |
+| Radius | **0.2** (object units) | **Settled** | Swept on screen (Session 63): 0.1 darkened the wrinkles; 0.2 makes cavities read more strongly. Larger radius finds more occluders. |
+| Sample count `N` | **256** | **Settled** | Raised from the lesson's 128 (Session 63): steadier darkening, not stronger. Never timed (skipped). Slight speckle remains in the armpits. |
+| Bias | **0** | **Settled** | No acne on flat surfaces at 0. Very sensitive: the viewport halves z, so radius 0.2 reaches only ≈ 0.1 in depth; 0.05 (half that reach) left only deep cavities dark and everything else white. |
+| Range check (ignore occluders far in front of the sample) | **Not added** | **Settled** | No halos seen at radius 0.2. |
+| Blur / denoise | **Not added** | **Settled** | Armpit speckle judged acceptable. A post-blur would need pixel x/y, i.e. a real post-pass. |
 
 ---
 

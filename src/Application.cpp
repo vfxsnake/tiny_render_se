@@ -990,6 +990,10 @@ void Application::testDrawMeshMaterialShader()
     // shadow map frame buffer
     Framebuffer shadow_map_buffer(WIDTH, HEIGHT);
     shadow_map_buffer.clear(Color{0,0,0,0});
+
+    // camera depth buffer
+    Framebuffer camera_depth_buffer(WIDTH, HEIGHT);
+    camera_depth_buffer.clear(Color{0,0,0,0});
     
     // Light matrix
     tinymath::Vec3f light_direction = tinymath::normalize(tinymath::Vec3f(-1.0f, 1.0f, 1.0f));
@@ -1003,37 +1007,54 @@ void Application::testDrawMeshMaterialShader()
                                                     {0.0f, 1.0f, 0.0f}
     );
     
-    
+
+    // computing Shadow
+    DepthShader light_depth_shader(geometry_mesh, light_matrix);
+    for (int index = 0; index < static_cast<int>(geometry_mesh.faceIndices.size()); index++)
+    {
+        std::array<tinymath::Vec4f,3> triangle_vertex; 
+        triangle_vertex[0] = light_depth_shader.vertex(index, 0); 
+        triangle_vertex[1] = light_depth_shader.vertex(index, 1); 
+        triangle_vertex[2] = light_depth_shader.vertex(index, 2);
+        
+        TriangleRasterizer::drawTriangle(triangle_vertex, light_depth_shader, shadow_map_buffer, true);
+    }
+
+    // Computing depth
+    DepthShader camera_depth_shader(geometry_mesh, transformation_matrix);
+    for (int index = 0; index < static_cast<int>(geometry_mesh.faceIndices.size()); index++)
+    {
+        std::array<tinymath::Vec4f,3> triangle_vertex; 
+        triangle_vertex[0] = camera_depth_shader.vertex(index, 0); 
+        triangle_vertex[1] = camera_depth_shader.vertex(index, 1); 
+        triangle_vertex[2] = camera_depth_shader.vertex(index, 2);
+        
+        TriangleRasterizer::drawTriangle(triangle_vertex, camera_depth_shader, camera_depth_buffer, true);
+    }
+
     MaterialShader material_shader(
         geometry_mesh,
         shadow_map_buffer,
+        camera_depth_buffer,
         diffuse_texture,
         specular_texture,
         emission_texture, 
         normal_map_texture,
         transformation_matrix,
         tinymath::viewport(shadow_map_buffer.getWidth(), shadow_map_buffer.getHeight()) * light_matrix,
+        tinymath::viewport(camera_depth_buffer.getWidth(), camera_depth_buffer.getHeight()) * transformation_matrix,
         light_direction, // light direction 
         tinymath::normalize(tinymath::Vec3f{2.5f, 1.0f, 2.5f}), // view direction
-        1.0f, // diffuse multiplier
-        1.0f, // specular multiplier
+        0.0f, // diffuse multiplier
+        0.0f, // specular multiplier
         100.0f, // shininess
-        1.0f, // emission multiplier
-        0.1f, // ambient multiplier
-        0.05f // shadow bias
+        0.0f, // emission multiplier
+        1.0f, // ambient multiplier
+        0.05f, // shadow bias
+        128, // sample count
+        0.5f, // occlusion radius
+        0.01f // occlusion bias
     );
-
-    DepthShader depth_shader(geometry_mesh, light_matrix);
-    for (int index = 0; index < static_cast<int>(geometry_mesh.faceIndices.size()); index++)
-    {
-        std::array<tinymath::Vec4f,3> triangle_vertex; 
-        triangle_vertex[0] = depth_shader.vertex(index, 0); 
-        triangle_vertex[1] = depth_shader.vertex(index, 1); 
-        triangle_vertex[2] = depth_shader.vertex(index, 2);
-        
-        TriangleRasterizer::drawTriangle(triangle_vertex, depth_shader, shadow_map_buffer, true);
-    }
-
 
     for (int index = 0; index < static_cast<int>(geometry_mesh.faceIndices.size()); index++)
     {
