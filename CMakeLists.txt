@@ -75,6 +75,7 @@ add_executable(TinyRendererSE
     src/rasterizer/shaders/MaterialShader.cpp
     src/rasterizer/shaders/DepthShader.cpp
     src/rasterizer/shaders/AmbientOcclusion.cpp
+    src/rasterizer/shaders/ToonShader.cpp
     src/display/DisplayPipeline.cpp
     src/display/GraphicsPipeline.cpp
     src/io/ObjLoader.cpp

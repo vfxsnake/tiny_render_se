@@ -68,6 +68,7 @@ private:
     void testDrawMeshTextureShader();
     void testDrawMeshMaterialShader();
     void testDrawMeshShadowMap();
+    void testDrawMeshToonShader();
 
     static constexpr uint32_t WIDTH = 800;
     static constexpr uint32_t HEIGHT = 800;

@@ -91,9 +91,9 @@ Pass 4 reads depth and writes colour only, so it never reads a value it has alre
 | Decision | Choice | Status | Reason |
 |---|---|---|---|
 | Where quantization lives | New **`ToonShader`**, not a mode flag in `MaterialShader` | **Agreed** | One algorithm per file; `MaterialShader` stays the photoreal end-state and the A/B. |
-| What `ToonShader` reads | Diffuse texture + tangent-space normal map; no specular map, glow, shadow or AO | **Agreed** | Smallest thing that shows bands on the real model; shadow and specular-map edges would fight the bands. Add terms back only if the screen asks. |
+| What `ToonShader` reads | Diffuse texture + tangent-space normal map + **shadow map**; no specular map, glow or AO | **Agreed** (shadow added at the header, user's call) | Smallest thing that shows bands on the real model; shadow and specular-map edges would fight the bands. Add terms back only if the screen asks. |
 | Specular | **Thresholded Blinn-Phong highlight**: one on/off step, constant **white**, no specular map | **Agreed** | The user's call: the classic toon highlight is a flat spot, not a band. Colour is constant, not read from the map. Needs a shininess and a specular threshold. |
-| Specular threshold / shininess | — | **Open** | Set on screen: the spot's size is the pair of them. |
+| Specular threshold / shininess | **0.5 / 100** | **Agreed** (on screen) | Spot visible and reads as a toon highlight; bands confirmed with `{0.2, 0.8, 1.0}`. |
 | Levels | **Band values as a ctor parameter** (`band_values`, e.g. `{0.33, 0.66, 1.0}`); its size is the band count. Thresholds stay evenly spaced at 1/n; the band index selects an entry | **Agreed** (revised at spike, replaces `band_count`) | The user's call: evenly spaced values k/n floor the shadow at 1/n (33% at 3 bands), too light for deeper tones. Explicit values decouple tone depth from count. Band index: top-edge snap — `d` in ((k−1)/n, k/n] → band k. |
 | Where the outline pass lives | Free function in **`src/rasterizer/OutlinePass.h/.cpp`** taking a `Framebuffer&` | **Agreed** | Not a shader — it has no vertex/fragment stages. Sits beside `LineDrawer` / `TriangleRasterizer`. |
 | Depth source for edges | `framebuffer_`'s own z-buffer after pass 3 | **Agreed** | Already filled; no extra pass. `camera_depth_buffer` is identical but only exists for AO. |
@@ -110,7 +110,7 @@ Pass 4 reads depth and writes colour only, so it never reads a value it has alre
 **Responsibility:** diffuse lighting quantized into bands, plus a flat white specular spot.
 
 **API:**
-- `ToonShader(const Mesh& mesh, const Texture& diffuse_texture, const Texture& normal_map_texture, const tinymath::Matrix4x4& transform, tinymath::Vec3f light_direction, tinymath::Vec3f view_direction, std::vector<float> band_values, float shininess, float specular_threshold)`
+- `ToonShader(const Mesh& mesh, const Framebuffer& shadow_map_buffer, const Texture& diffuse_texture, const Texture& normal_map_texture, const tinymath::Matrix4x4& transform, const tinymath::Matrix4x4& shadow_lookup_transform, tinymath::Vec3f light_direction, tinymath::Vec3f view_direction, std::vector<float> band_values, float specular_threshold, float shininess, float shadow_bias)`
 - `tinymath::Vec4f vertex(int face_index, int vertex_index) override`
 - `bool fragment(screen::BarycentricWeights weights, Color& out_color) override` — diffuse from the mapped normal, snapped to a level, times albedo; white added where the Blinn-Phong specular exceeds the threshold.
 
@@ -123,7 +123,7 @@ Pass 4 reads depth and writes colour only, so it never reads a value it has alre
 
 ### `Application`
 
-- `testDrawMeshToonShader()` — shadow/camera passes only if `ToonShader` ends up using them,
+- `testDrawMeshToonShader()` — shadow pass (no camera depth pass),
   then the toon pass into `framebuffer_`, then `OutlinePass::drawOutlines`.
 
 ### Tests
@@ -135,5 +135,5 @@ on a small framebuffer with a depth step — pixels along the step turn black, a
 
 ## Carried in from Lesson 10
 
-- **Perspective-correct interpolation** is still deferred; it is the last item after this lesson.
+- **Perspective-correct interpolation** is dropped (decided 2026-10-01): not needed for the learning goals; Lesson 11 closes the project.
 - The `MaterialShader.h` doc comment still does not mention the normal map, shadow map and AO.

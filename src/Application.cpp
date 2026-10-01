@@ -24,6 +24,7 @@
 #include "rasterizer/shaders/TextureShader.h"
 #include "rasterizer/shaders/MaterialShader.h"
 #include "rasterizer/shaders/DepthShader.h"
+#include "rasterizer/shaders/ToonShader.h"
 #include "rasterizer/Texture.h"
 #include "geometry/Mesh.h"
 #include "utils/Timer.h"
@@ -70,7 +71,8 @@ void Application::run()
     // testDrawMeshUvColorShader();
     // testDrawMeshTextureShader();
     // testDrawMeshShadowMap();
-    testDrawMeshMaterialShader();
+    // testDrawMeshMaterialShader();
+    testDrawMeshToonShader();
 
     mainLoop();
 }
@@ -1100,4 +1102,81 @@ void Application::testDrawMeshShadowMap()
     }
 
     blitDepthAsGrayscale(shadow_map_buffer);
+}
+
+
+void Application::testDrawMeshToonShader()
+{
+    framebuffer_.clear(Color{0,0,0,0});
+    const Mesh geometry_mesh = io::loadObj("models/diablo3_pose.obj");
+    const Texture diffuse_texture = io::loadTexture("models/diablo3_pose_diffuse.tga");
+    const Texture normal_map_texture = io::loadTexture("models/diablo3_pose_nm.tga");
+    
+    if (geometry_mesh.faceIndices.size() != geometry_mesh.faceNormalIndices.size())
+    {
+        std::cout << "mismatch from faceIndex and face NormalsIndices sizes!!!";
+        return;
+    }  
+
+    // transformation matrix
+    tinymath::Matrix4x4 transformation_matrix = tinymath::perspective(3.0f) *
+                                                tinymath::lookAt(
+                                                    {2.5f, 1.0f, 2.5f}, 
+                                                    {0.0f, 0.0f, 0.0f}, 
+                                                    {0.0f, 1.0f, 0.0f}
+                                                );
+
+    // shadow map frame buffer
+    Framebuffer shadow_map_buffer(WIDTH, HEIGHT);
+    shadow_map_buffer.clear(Color{0,0,0,0});
+    
+    // Light matrix
+    tinymath::Vec3f light_direction = tinymath::normalize(tinymath::Vec3f(-1.0f, 1.0f, 1.0f));
+    tinymath::Matrix4x4 scale;
+    scale.data[0][0] = 0.8f; // constant scale for the light in the current scene conditions.
+    scale.data[1][1] = 0.8f;
+    scale.data[2][2] = 0.8f;
+    tinymath::Matrix4x4 light_matrix = scale * tinymath::lookAt(
+                                                    light_direction,
+                                                    {0.0f, 0.0f, 0.0f}, 
+                                                    {0.0f, 1.0f, 0.0f}
+    );
+    
+
+    // computing Shadow
+    DepthShader light_depth_shader(geometry_mesh, light_matrix);
+    for (int index = 0; index < static_cast<int>(geometry_mesh.faceIndices.size()); index++)
+    {
+        std::array<tinymath::Vec4f,3> triangle_vertex; 
+        triangle_vertex[0] = light_depth_shader.vertex(index, 0); 
+        triangle_vertex[1] = light_depth_shader.vertex(index, 1); 
+        triangle_vertex[2] = light_depth_shader.vertex(index, 2);
+        
+        TriangleRasterizer::drawTriangle(triangle_vertex, light_depth_shader, shadow_map_buffer, true);
+    }
+
+    ToonShader toon_shader(
+        geometry_mesh,
+        shadow_map_buffer,
+        diffuse_texture,
+        normal_map_texture,
+        transformation_matrix,
+        tinymath::viewport(shadow_map_buffer.getWidth(), shadow_map_buffer.getHeight()) * light_matrix,
+        light_direction, // light direction 
+        tinymath::normalize(tinymath::Vec3f{2.5f, 1.0f, 2.5f}), // view direction
+        {0.2f, 0.8f, 1.0f}, // band values
+        0.5f, // specular threshold
+        100.0f, // shininess
+        0.05f // shadow bias
+    );
+
+    for (int index = 0; index < static_cast<int>(geometry_mesh.faceIndices.size()); index++)
+    {
+        std::array<tinymath::Vec4f,3> triangle_vertex; 
+        triangle_vertex[0] = toon_shader.vertex(index, 0); 
+        triangle_vertex[1] = toon_shader.vertex(index, 1); 
+        triangle_vertex[2] = toon_shader.vertex(index, 2);
+        
+        TriangleRasterizer::drawTriangle(triangle_vertex, toon_shader, framebuffer_, true);
+    }
 }
