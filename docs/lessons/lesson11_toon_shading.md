@@ -2,9 +2,9 @@
 
 **Source:** https://haqr.eu/tinyrenderer/toon/
 
-> **Status: PLANNED (Session 63, 2026-09-30).** Written from the lesson page before any spike, at the
-> user's request; every design row reviewed and **Agreed**. **Open** rows (edge threshold, specular
-> threshold / shininess) are settled on screen.
+> **Status: COMPLETE (Session 65, 2026-10-02).** Planned in Session 63 before any spike, at the
+> user's request. Spike revised `band_count` → `band_values` and kept the shadow map (Session 64);
+> outline pass moved to `postprocess/Outline` and its threshold measured on screen (Session 65).
 
 ## Goal
 
@@ -95,11 +95,11 @@ Pass 4 reads depth and writes colour only, so it never reads a value it has alre
 | Specular | **Thresholded Blinn-Phong highlight**: one on/off step, constant **white**, no specular map | **Agreed** | The user's call: the classic toon highlight is a flat spot, not a band. Colour is constant, not read from the map. Needs a shininess and a specular threshold. |
 | Specular threshold / shininess | **0.5 / 100** | **Agreed** (on screen) | Spot visible and reads as a toon highlight; bands confirmed with `{0.2, 0.8, 1.0}`. |
 | Levels | **Band values as a ctor parameter** (`band_values`, e.g. `{0.33, 0.66, 1.0}`); its size is the band count. Thresholds stay evenly spaced at 1/n; the band index selects an entry | **Agreed** (revised at spike, replaces `band_count`) | The user's call: evenly spaced values k/n floor the shadow at 1/n (33% at 3 bands), too light for deeper tones. Explicit values decouple tone depth from count. Band index: top-edge snap — `d` in ((k−1)/n, k/n] → band k. |
-| Where the outline pass lives | Free function in **`src/rasterizer/OutlinePass.h/.cpp`** taking a `Framebuffer&` | **Agreed** | Not a shader — it has no vertex/fragment stages. Sits beside `LineDrawer` / `TriangleRasterizer`. |
+| Where the outline pass lives | Free function `Outline::drawOutlines` in **`src/rasterizer/postprocess/Outline.h/.cpp`** taking a `Framebuffer&` | **Agreed** | Not a shader — it has no vertex/fragment stages. `postprocess/` gives future post-passes (blur) a home. "Pass" dropped from the name — the folder already says it. |
 | Depth source for edges | `framebuffer_`'s own z-buffer after pass 3 | **Agreed** | Already filled; no extra pass. `camera_depth_buffer` is identical but only exists for AO. |
 | Border pixels | Skipped (loop `1 … size − 2`) | **Agreed** | No neighbours to read; one-pixel frame is invisible. |
-| Threshold | — | **Open** | Measured on the edge-strength range. |
-| Outline colour / width | **Colour as a parameter** (`outline_color`), black for the final look; width 1 pixel | **Agreed** | The user's call: a loud colour (e.g. red) makes misplaced or missing edges easy to spot while tuning. Width grows only if 1 px reads too thin. |
+| Threshold | **0.15** | **Agreed** (on screen) | Greyscale spike measured edge strength 0 – 3.11 (max = silhouette against the cleared depth 0); inner folds read as dark grey (~0.2–0.3). Swept up from 0.1 until slopes cleared and folds stayed. |
+| Outline colour / width | **Colour as a parameter** (`outline_color`), final look a dark reddish `{15, 10, 12, 255}`; width 1 pixel | **Agreed** (on screen) | The user's call: a loud colour (e.g. red) makes misplaced or missing edges easy to spot while tuning. Width grows only if 1 px reads too thin. |
 
 ---
 
@@ -114,17 +114,17 @@ Pass 4 reads depth and writes colour only, so it never reads a value it has alre
 - `tinymath::Vec4f vertex(int face_index, int vertex_index) override`
 - `bool fragment(screen::BarycentricWeights weights, Color& out_color) override` — diffuse from the mapped normal, snapped to a level, times albedo; white added where the Blinn-Phong specular exceeds the threshold.
 
-### `src/rasterizer/OutlinePass.h/.cpp` (new)
+### `src/rasterizer/postprocess/Outline.h/.cpp` (new)
 
 **Responsibility:** Sobel edge detection over a framebuffer's depth, painting edges black.
 
 **API:**
-- `void OutlinePass::drawOutlines(Framebuffer& framebuffer, float threshold, const Color& outline_color)`
+- `void Outline::drawOutlines(Framebuffer& frame_buffer, Color outline_color, float threshold)`
 
 ### `Application`
 
 - `testDrawMeshToonShader()` — shadow pass (no camera depth pass),
-  then the toon pass into `framebuffer_`, then `OutlinePass::drawOutlines`.
+  then the toon pass into `framebuffer_`, then `Outline::drawOutlines`.
 
 ### Tests
 

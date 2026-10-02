@@ -26,6 +26,7 @@
 #include "rasterizer/shaders/DepthShader.h"
 #include "rasterizer/shaders/ToonShader.h"
 #include "rasterizer/Texture.h"
+#include "rasterizer/postprocess/Outline.h"
 #include "geometry/Mesh.h"
 #include "utils/Timer.h"
 #include "io/ObjLoader.h"
@@ -1179,4 +1180,6 @@ void Application::testDrawMeshToonShader()
         
         TriangleRasterizer::drawTriangle(triangle_vertex, toon_shader, framebuffer_, true);
     }
+
+    Outline::drawOutlines(framebuffer_, {15, 10, 12, 255}, 0.15f);
 }
